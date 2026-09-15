@@ -33,12 +33,14 @@ DEFAULT_MEDIA_TYPE = {"wav": "audio/wav", "mp3": "audio/mpeg", "ogg": "audio/ogg
 def _safe_original_filename(filename: str | None) -> str | None:
     if not filename:
         return None
-    cleaned = _FILENAME_SAFE.sub("_", Path(filename).name).strip()
+    # Normalize both POSIX and Windows separators before taking the basename.
+    normalized = filename.replace("\\", "/")
+    cleaned = _FILENAME_SAFE.sub("_", Path(normalized).name).strip()
     return cleaned[:255] or None
 
 
 def _extension(filename: str | None) -> str:
-    return Path(filename or "").suffix.lower().lstrip(".")
+    return Path((filename or "").replace("\\", "/")).suffix.lower().lstrip(".")
 
 
 def _detect_format(header: bytes) -> str | None:

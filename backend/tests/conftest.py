@@ -17,16 +17,21 @@ from dotenv import load_dotenv
 # ── Force test environment before any app import ──────────────────────────
 os.environ["APP_ENV"] = "testing"
 
-# Load variables from .env if present
-load_dotenv()
+# Load variables from .env
+load_dotenv(override=True)
 
-# Fallback if TEST_DATABASE_URL isn't in .env
-os.environ.setdefault(
-    "TEST_DATABASE_URL",
-    "postgresql://test_user:test_pass@localhost:5432/voice_cloning_test",
-)
-# Ensure config uses the test DB
-os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+# Phase 01 requires database configuration from environment.
+# No hardcoded database credentials.
+test_database_url = os.getenv("TEST_DATABASE_URL")
+
+if not test_database_url:
+    raise RuntimeError(
+        "TEST_DATABASE_URL is not configured. "
+        "Set it in backend/.env before running database tests."
+    )
+
+# Ensure the application uses the test database during pytest.
+os.environ["DATABASE_URL"] = test_database_url
 
 from app.database import get_engine, get_session_factory
 from app.models.base import Base

@@ -1,4 +1,4 @@
-"""Authenticated analysis-session and audio-intake endpoints."""
+"""Authenticated analysis-session and audio-processing endpoints."""
 
 from uuid import UUID
 
@@ -6,13 +6,17 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import get_settings
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.audit_log import AuditLog
+from app.models.audio_input import AudioInput
 from app.models.call import Call
 from app.models.user import User
 from app.schemas.analysis import AnalysisSessionCreate, AnalysisSessionResponse
+from app.schemas.audio_processing import AudioProcessingResponse
 from app.services.analysis import create_session, get_owned_session, store_audio_upload
+from app.services.audio_processing import AudioProcessingError, process_audio_input
 
 router = APIRouter(prefix="/calls", tags=["analysis"])
 CREATE_ANALYSIS_ROLES = ("OPERATOR", "SECURITY_ANALYST", "ADMIN", "SUPER_ADMIN")
@@ -78,3 +82,44 @@ async def upload_analysis_audio(session_id: UUID, request: Request, file: Upload
         "format": audio.detected_format,
     })
     return db.scalar(select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session.id))
+
+
+@router.post("/{session_id}/audio/{audio_input_id}/process", response_model=AudioProcessingResponse)
+async def process_analysis_audio(
+    session_id: UUID,
+    audio_input_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
+) -> AudioProcessingResponse:
+    """Decode, standardize, normalize and persist one validated audio input."""
+    audio = db.scalar(
+        select(AudioInput)
+        .join(Call, Call.id == AudioInput.call_id)
+        .where(
+            AudioInput.id == audio_input_id,
+            AudioInput.call_id == session_id,
+            Call.organization_id == current_user.organization_id,
+        )
+    )
+    if audio is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio input not found")
+    if audio.intake_status != "VALIDATED":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Audio input is not validated")
+
+    settings = get_settings()
+    try:
+        job = process_audio_input(db, audio, settings)
+    except AudioProcessingError as exc:
+        _audit(db, current_user, "AUDIO_PROCESSING_FAILED", session_id, request, {
+            "audio_input_id": str(audio.id),
+            "reason": str(exc),
+        })
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from None
+
+    _audit(db, current_user, "AUDIO_PROCESSING_COMPLETED", session_id, request, {
+        "audio_input_id": str(audio.id),
+        "processing_job_id": str(job.id),
+        "processed_storage_key": job.processed_storage_key,
+    })
+    return job

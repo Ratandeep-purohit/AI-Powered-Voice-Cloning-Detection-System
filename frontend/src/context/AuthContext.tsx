@@ -1,6 +1,6 @@
 /** Global authentication state with memory-only access token and cookie refresh. */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { apiLogin, apiLogout, apiRefresh, clearAccessToken, setAccessToken, type UserProfile } from "../api/auth";
+import { apiLogin, apiLogout, apiRefresh, setAccessToken, type UserProfile } from "../api/auth";
 
 interface AuthState { user: UserProfile | null; isAuthenticated: boolean; isLoading: boolean; }
 interface AuthContextValue extends AuthState { login: (email: string, password: string) => Promise<void>; logout: () => Promise<void>; }

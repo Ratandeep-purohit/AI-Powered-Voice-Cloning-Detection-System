@@ -14,7 +14,7 @@ from app.models.user import User
 from app.schemas.analysis import AnalysisSessionCreate, AnalysisSessionResponse
 from app.services.analysis import create_session, get_owned_session, store_audio_upload
 
-router = APIRouter(prefix="/analysis", tags=["analysis"])
+router = APIRouter(prefix="/calls", tags=["analysis"])
 
 
 def _audit(db: Session, user: User, action: str, entity_id: UUID, request: Request, metadata: dict | None = None) -> None:
@@ -31,7 +31,7 @@ def _audit(db: Session, user: User, action: str, entity_id: UUID, request: Reque
     db.commit()
 
 
-@router.post("/sessions", response_model=AnalysisSessionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AnalysisSessionResponse, status_code=status.HTTP_201_CREATED)
 async def create_analysis_session(
     payload: AnalysisSessionCreate,
     request: Request,
@@ -40,38 +40,39 @@ async def create_analysis_session(
 ) -> Call:
     session = create_session(db, current_user, payload.external_reference, payload.caller_identifier)
     _audit(db, current_user, "SESSION_CREATED", session.id, request)
-    return db.scalar(
-        select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session.id)
-    )
+    return db.scalar(select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session.id))
 
 
-@router.get("/sessions", response_model=list[AnalysisSessionResponse])
+@router.get("", response_model=list[AnalysisSessionResponse])
 async def list_analysis_sessions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Call]:
     return list(db.scalars(
-        select(Call)
-        .options(selectinload(Call.audio_inputs))
+        select(Call).options(selectinload(Call.audio_inputs))
         .where(Call.organization_id == current_user.organization_id)
         .order_by(Call.created_at.desc())
     ).all())
 
 
-@router.get("/sessions/{session_id}", response_model=AnalysisSessionResponse)
+@router.get("/{session_id}", response_model=AnalysisSessionResponse)
 async def get_analysis_session(
     session_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Call:
-    session = get_owned_session(db, current_user, session_id)
+    session = db.scalar(
+        select(Call).options(selectinload(Call.audio_inputs)).where(
+            Call.id == session_id,
+            Call.organization_id == current_user.organization_id,
+        )
+    )
     if session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis session not found")
-    db.refresh(session, attribute_names=["audio_inputs"])
     return session
 
 
-@router.post("/sessions/{session_id}/audio", response_model=AnalysisSessionResponse)
+@router.post("/{session_id}/audio", response_model=AnalysisSessionResponse)
 async def upload_analysis_audio(
     session_id: UUID,
     request: Request,
@@ -88,7 +89,6 @@ async def upload_analysis_audio(
     try:
         audio = store_audio_upload(db, current_user, session, file)
     except ValueError as exc:
-        # No filesystem path or infrastructure details are exposed.
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
     finally:
         await file.close()
@@ -98,6 +98,4 @@ async def upload_analysis_audio(
         "size_bytes": audio.size_bytes,
         "format": audio.detected_format,
     })
-    return db.scalar(
-        select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session.id)
-    )
+    return db.scalar(select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session.id))

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.call import Call
@@ -15,6 +15,7 @@ from app.schemas.analysis import AnalysisSessionCreate, AnalysisSessionResponse
 from app.services.analysis import create_session, get_owned_session, store_audio_upload
 
 router = APIRouter(prefix="/calls", tags=["analysis"])
+CREATE_ANALYSIS_ROLES = ("OPERATOR", "SECURITY_ANALYST", "ADMIN", "SUPER_ADMIN")
 
 
 def _audit(db: Session, user: User, action: str, entity_id: UUID, request: Request, metadata: dict | None = None) -> None:
@@ -36,7 +37,7 @@ async def create_analysis_session(
     payload: AnalysisSessionCreate,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
 ) -> Call:
     session = create_session(db, current_user, payload.external_reference, payload.caller_identifier)
     _audit(db, current_user, "SESSION_CREATED", session.id, request)
@@ -78,7 +79,7 @@ async def upload_analysis_audio(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
 ) -> Call:
     session = get_owned_session(db, current_user, session_id)
     if session is None:

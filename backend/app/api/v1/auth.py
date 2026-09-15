@@ -92,10 +92,10 @@ async def refresh(request: Request, response: Response, db: Session = Depends(ge
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: Request, response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Response:
+async def logout(request: Request, response: Response, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> None:
     raw = request.cookies.get(REFRESH_COOKIE)
     if raw:
         db.execute(update(RefreshToken).where(RefreshToken.token_hash == _token_hash(raw), RefreshToken.user_id == current_user.id).values(revoked_at=datetime.now(timezone.utc)))
     _audit(db, current_user, "AUTHENTICATION", "LOGOUT", request)
     response.delete_cookie(REFRESH_COOKIE, path="/api/v1/auth")
-    return response
+    response.status_code = status.HTTP_204_NO_CONTENT

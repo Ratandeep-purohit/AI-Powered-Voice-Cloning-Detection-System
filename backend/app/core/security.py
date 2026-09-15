@@ -30,6 +30,9 @@ def _encode(subject: str, organization_id: str, role: str, token_type: str, expi
         "org": organization_id,
         "role": role,
         "type": token_type,
+        # Every token gets a unique JWT ID. Without this, two refresh tokens
+        # issued in the same second can be byte-for-byte identical and collide
+        # with the refresh_tokens.token_hash unique constraint.
         "jti": str(uuid4()),
         "iat": now,
         "exp": now + expires,

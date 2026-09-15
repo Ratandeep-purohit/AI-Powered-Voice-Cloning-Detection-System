@@ -17,7 +17,7 @@ from app.models.audio_input import AudioInput
 from app.models.call import Call
 from app.models.user import User
 
-_FILENAME_SAFE = re.compile(r"[^A-Za-z0-9._ -]+")
+_FILENAME_SAFE = re.compile(r"[^A-Za-z0-9._ ()-]+")
 _CHUNK_SIZE = 1024 * 1024
 
 SUPPORTED_MEDIA = {

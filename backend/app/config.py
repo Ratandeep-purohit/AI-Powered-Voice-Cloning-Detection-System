@@ -11,12 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Validated application settings."""
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
     app_env: str = Field(default="development")
     app_host: str = Field(default="0.0.0.0")
@@ -26,11 +21,15 @@ class Settings(BaseSettings):
     database_url: str = Field(...)
     test_database_url: str | None = Field(default=None)
 
-    # Phase 02 authentication configuration.
     jwt_secret: str = Field(...)
     jwt_algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=30)
     refresh_token_expire_days: int = Field(default=7)
+
+    # Phase 03 audio intake configuration.
+    audio_storage_path: str = Field(default="storage/audio")
+    audio_max_upload_size_mb: int = Field(default=25)
+    audio_allowed_extensions: str = Field(default="wav,mp3,ogg,flac,m4a")
 
     @property
     def is_development(self) -> bool:
@@ -39,6 +38,10 @@ class Settings(BaseSettings):
     @property
     def is_testing(self) -> bool:
         return self.app_env.lower() == "testing"
+
+    @property
+    def allowed_audio_extensions(self) -> set[str]:
+        return {item.strip().lower().lstrip(".") for item in self.audio_allowed_extensions.split(",") if item.strip()}
 
     @field_validator("database_url")
     @classmethod
@@ -61,16 +64,20 @@ class Settings(BaseSettings):
             raise ValueError("REFRESH_TOKEN_EXPIRE_DAYS must be positive.")
         return v
 
+    @field_validator("audio_max_upload_size_mb")
+    @classmethod
+    def _audio_upload_size_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("AUDIO_MAX_UPLOAD_SIZE_MB must be positive.")
+        return v
+
     def safe_database_url(self) -> str:
         """Return the database URL with the password redacted for logging."""
         try:
             from urllib.parse import urlparse, urlunparse
             parsed = urlparse(self.database_url)
             if parsed.password:
-                safe = parsed._replace(
-                    netloc=f"{parsed.username}:***@{parsed.hostname}"
-                    + (f":{parsed.port}" if parsed.port else "")
-                )
+                safe = parsed._replace(netloc=f"{parsed.username}:***@{parsed.hostname}" + (f":{parsed.port}" if parsed.port else ""))
                 return urlunparse(safe)
         except Exception:
             pass

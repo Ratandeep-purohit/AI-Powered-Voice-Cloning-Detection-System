@@ -1,8 +1,4 @@
-"""Application configuration loaded from environment variables.
-
-Credentials are never hardcoded here.  All sensitive values come from
-the environment or a local .env file that is excluded from source control.
-"""
+"""Application configuration loaded from environment variables."""
 
 from __future__ import annotations
 
@@ -22,39 +18,20 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ── Application ────────────────────────────────────────────────────────
-    app_env: str = Field(default="development", description="Runtime environment.")
-    app_host: str = Field(default="0.0.0.0", description="Bind host.")
-    app_port: int = Field(default=8000, description="Bind port.")
-    log_level: str = Field(default="INFO", description="Logging level.")
+    app_env: str = Field(default="development")
+    app_host: str = Field(default="0.0.0.0")
+    app_port: int = Field(default=8000)
+    log_level: str = Field(default="INFO")
 
-    # ── Database ───────────────────────────────────────────────────────────
-    database_url: str = Field(
-        ...,
-        description="PostgreSQL connection URL.  Must be set via environment.",
-    )
-    test_database_url: str | None = Field(
-        default=None,
-        description="Isolated test database URL.",
-    )
+    database_url: str = Field(...)
+    test_database_url: str | None = Field(default=None)
 
-    # ── JWT Authentication – Phase 02 ─────────────────────────────────────
-    # jwt_secret MUST come from the environment.  No default is permitted;
-    # the application will refuse to start if this is absent.
-    jwt_secret: str = Field(
-        ...,
-        description="HMAC-SHA256 JWT signing secret.  Must be set via environment.",
-    )
-    jwt_algorithm: str = Field(
-        default="HS256",
-        description="JWT signing algorithm.",
-    )
-    access_token_expire_minutes: int = Field(
-        default=60,
-        description="JWT access token lifetime in minutes.",
-    )
+    # Phase 02 authentication configuration.
+    jwt_secret: str = Field(...)
+    jwt_algorithm: str = Field(default="HS256")
+    access_token_expire_minutes: int = Field(default=30)
+    refresh_token_expire_days: int = Field(default=7)
 
-    # ── Derived helpers ────────────────────────────────────────────────────
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() == "development"
@@ -70,11 +47,24 @@ class Settings(BaseSettings):
             raise ValueError("DATABASE_URL must not be empty.")
         return v
 
+    @field_validator("access_token_expire_minutes")
+    @classmethod
+    def _access_token_expiry_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive.")
+        return v
+
+    @field_validator("refresh_token_expire_days")
+    @classmethod
+    def _refresh_token_expiry_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("REFRESH_TOKEN_EXPIRE_DAYS must be positive.")
+        return v
+
     def safe_database_url(self) -> str:
         """Return the database URL with the password redacted for logging."""
         try:
             from urllib.parse import urlparse, urlunparse
-
             parsed = urlparse(self.database_url)
             if parsed.password:
                 safe = parsed._replace(
@@ -89,10 +79,8 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Return the cached application settings singleton."""
     return Settings()
 
 
 def get_fresh_settings() -> Settings:
-    """Return a non-cached settings instance (used in tests to reload config)."""
     return Settings()

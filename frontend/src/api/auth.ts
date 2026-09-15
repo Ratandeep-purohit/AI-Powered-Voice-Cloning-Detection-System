@@ -1,16 +1,4 @@
-/**
- * API client — auth endpoints only.
- *
- * SECURITY:
- * - Access tokens are stored in memory (module-level variable), NOT in
- *   localStorage or sessionStorage. This prevents XSS-based token theft.
- * - The token is cleared on logout or tab close (memory-only).
- * - Credentials are NEVER logged by this module.
- *
- * NOTE: The spec does not define a refresh-token mechanism with sufficient
- * detail to implement safely, so only login / me / logout (clear) are provided.
- */
-
+/** Authentication API client. Access JWT stays in memory; refresh token is HttpOnly cookie. */
 import axios from "axios";
 
 const API_BASE = "/api/v1";
@@ -34,58 +22,40 @@ export interface TokenResponse {
   user: UserProfile;
 }
 
-export interface ApiError {
-  detail?: string;
-  error?: string;
-  message?: string;
-}
-
-// ── In-memory token store ─────────────────────────────────────────────────
 let _accessToken: string | null = null;
 
-export function setAccessToken(token: string): void {
-  _accessToken = token;
-}
+export function setAccessToken(token: string): void { _accessToken = token; }
+export function clearAccessToken(): void { _accessToken = null; }
+export function hasAccessToken(): boolean { return _accessToken !== null; }
 
-export function clearAccessToken(): void {
-  _accessToken = null;
-}
-
-export function hasAccessToken(): boolean {
-  return _accessToken !== null;
-}
-
-// ── Axios instance ────────────────────────────────────────────────────────
 const apiClient = axios.create({
   baseURL: API_BASE,
+  withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach the access token to every request (from memory, never from storage)
 apiClient.interceptors.request.use((config) => {
-  if (_accessToken) {
-    config.headers["Authorization"] = `Bearer ${_accessToken}`;
-  }
+  if (_accessToken) config.headers.Authorization = `Bearer ${_accessToken}`;
   return config;
 });
 
-// ── Auth API calls ────────────────────────────────────────────────────────
-
-export async function apiLogin(
-  email: string,
-  password: string
-): Promise<TokenResponse> {
-  // Credentials are sent over HTTPS (enforced in deployment)
-  const response = await apiClient.post<TokenResponse>("/auth/login", {
-    email,
-    password,
-  });
+export async function apiLogin(email: string, password: string): Promise<TokenResponse> {
+  const response = await apiClient.post<TokenResponse>("/auth/login", { email, password });
   return response.data;
 }
 
-export async function apiRegister(data: Record<string, any>): Promise<TokenResponse> {
+export async function apiRegister(data: Record<string, unknown>): Promise<TokenResponse> {
   const response = await apiClient.post<TokenResponse>("/register", data);
   return response.data;
+}
+
+export async function apiRefresh(): Promise<TokenResponse> {
+  const response = await apiClient.post<TokenResponse>("/auth/refresh");
+  return response.data;
+}
+
+export async function apiLogout(): Promise<void> {
+  try { await apiClient.post("/auth/logout"); } finally { clearAccessToken(); }
 }
 
 export async function apiGetCurrentUser(): Promise<UserProfile> {

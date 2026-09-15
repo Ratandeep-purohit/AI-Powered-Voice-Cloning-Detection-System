@@ -1,0 +1,30 @@
+.analysis-intake-card {
+  margin-top: 20px;
+  padding: 24px;
+  border: 1px solid #dbe4f0;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+
+.analysis-intake-copy h2 { margin: 6px 0; }
+.analysis-intake-copy p { margin: 0; color: #64748b; max-width: 720px; }
+.analysis-intake-controls { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+.audio-file-input { flex: 1 1 280px; position: relative; min-width: 0; }
+.audio-file-input span {
+  display: block; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 10px;
+  color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.audio-file-input input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
+.analysis-upload-button {
+  border: 0; border-radius: 10px; padding: 12px 18px; background: #2563eb; color: #fff;
+  font-weight: 600; cursor: pointer;
+}
+.analysis-upload-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.analysis-intake-result { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; padding: 12px 14px; border-radius: 10px; background: #f0fdf4; color: #166534; }
+.analysis-intake-message { margin: 12px 0 0; color: #475569; }
+
+@media (max-width: 640px) {
+  .analysis-intake-card { padding: 18px; }
+  .analysis-upload-button { width: 100%; }
+}

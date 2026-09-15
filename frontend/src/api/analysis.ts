@@ -32,7 +32,7 @@ export async function createAnalysisSession(
   accessToken: string,
   payload: { external_reference?: string; caller_identifier?: string } = {},
 ): Promise<AnalysisSession> {
-  const response = await axios.post<AnalysisSession>(`${API_BASE}/analysis/sessions`, payload, {
+  const response = await axios.post<AnalysisSession>(`${API_BASE}/calls`, payload, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   return response.data;
@@ -46,7 +46,7 @@ export async function uploadAnalysisAudio(
   const formData = new FormData();
   formData.append("file", file);
   const response = await axios.post<AnalysisSession>(
-    `${API_BASE}/analysis/sessions/${sessionId}/audio`,
+    `${API_BASE}/calls/${sessionId}/audio`,
     formData,
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );

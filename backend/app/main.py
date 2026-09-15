@@ -80,12 +80,7 @@ def create_app() -> FastAPI:
     # ── Routers ────────────────────────────────────────────────────────────
     _app.include_router(health_router, prefix="/api/v1")
     
-    from app.api.v1.auth import router as auth_router
-    from app.api.v1.users import router as users_router
-    from app.api.v1.register import router as register_router
-    _app.include_router(auth_router, prefix="/api/v1")
-    _app.include_router(users_router, prefix="/api/v1")
-    _app.include_router(register_router, prefix="/api/v1")
+
 
     return _app
 

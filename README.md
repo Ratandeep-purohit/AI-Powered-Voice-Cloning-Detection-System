@@ -110,7 +110,7 @@ The model output is a detection signal, not a fraud decision. The final risk lev
 
 ## Repository Documentation
 
-The complete project design is documented in the [`Docs`](Docs) directory:
+The complete project design is documented in the [`Docs`](Docs) directory.
 
 | Document | Purpose |
 |---|---|
@@ -141,24 +141,41 @@ Use only self-generated, publicly permitted, or explicitly authorized audio samp
 
 ## Getting Started
 
-This repository currently contains the product, architecture, API, AI/ML, security, database, roadmap, and demo specifications that guide implementation.
+Phase 00 now provides the runnable development foundation. The detailed local setup is documented in [`Docs/LOCAL_SETUP.md`](Docs/LOCAL_SETUP.md).
 
-The recommended build sequence is:
+Quick start:
 
-1. Establish the React frontend, FastAPI backend, PostgreSQL database, and local environment.
-2. Implement authentication, server-side RBAC, and organization isolation.
-3. Implement audio-session creation, upload validation, and preprocessing.
-4. Integrate a locally tested pretrained anti-spoofing model through the model adapter.
-5. Implement deterministic risk scoring, policy validation, alerts, and audit logging.
-6. Build dashboard APIs and frontend investigation views.
-7. Add WebSocket updates and, where feasible, the advisory Security Copilot.
-8. Test and harden the demo path using the [demo guide](Docs/DEMO.md).
+```bash
+docker compose up -d postgres
+cd backend
+python -m venv .venv
+# Windows PowerShell: .\\.venv\\Scripts\\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+In a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Backend health endpoint:
+
+```text
+GET http://127.0.0.1:8000/api/v1/health
+```
+
+Run tests from `backend` with `pytest`, and frontend tests with `npm run test`.
 
 ## Project Status
 
-**Status: Documentation and MVP design phase.**
+**Status: Phase 00 — Project Foundation implemented.**
 
-The repository defines the approved scope and implementation blueprint. Features described as future scope in the documentation are not represented as completed functionality.
+The repository contains the approved product design plus the initial runnable FastAPI/React foundation. Later feature phases remain intentionally unimplemented until their documented implementation phase begins.
 
 ## Future Direction
 

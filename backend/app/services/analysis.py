@@ -27,6 +27,7 @@ SUPPORTED_MEDIA = {
     "flac": {"audio/flac", "audio/x-flac"},
     "m4a": {"audio/mp4", "audio/x-m4a", "video/mp4"},
 }
+DEFAULT_MEDIA_TYPE = {"wav": "audio/wav", "mp3": "audio/mpeg", "ogg": "audio/ogg", "flac": "audio/flac", "m4a": "audio/mp4"}
 
 
 def _safe_original_filename(filename: str | None) -> str | None:
@@ -70,12 +71,7 @@ def create_session(db: Session, user: User, external_reference: str | None, call
 
 
 def get_owned_session(db: Session, user: User, session_id: UUID) -> Call | None:
-    return db.scalar(
-        select(Call).where(
-            Call.id == session_id,
-            Call.organization_id == user.organization_id,
-        )
-    )
+    return db.scalar(select(Call).where(Call.id == session_id, Call.organization_id == user.organization_id))
 
 
 def store_audio_upload(db: Session, user: User, session: Call, upload: UploadFile) -> AudioInput:
@@ -127,7 +123,7 @@ def store_audio_upload(db: Session, user: User, session: Call, upload: UploadFil
             call_id=session.id,
             original_filename=_safe_original_filename(upload.filename),
             storage_key=storage_key,
-            content_type=content_type or SUPPORTED_MEDIA[ext].pop(),
+            content_type=content_type or DEFAULT_MEDIA_TYPE[ext],
             detected_format=detected,
             size_bytes=total,
             sha256=digest.hexdigest(),
@@ -139,6 +135,7 @@ def store_audio_upload(db: Session, user: User, session: Call, upload: UploadFil
         db.refresh(audio)
         return audio
     except Exception:
+        db.rollback()
         if destination.exists():
             destination.unlink()
         raise

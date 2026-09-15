@@ -1,6 +1,7 @@
 """Password hashing and JWT helpers for Phase 02."""
 
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import jwt
 from argon2 import PasswordHasher
@@ -29,6 +30,7 @@ def _encode(subject: str, organization_id: str, role: str, token_type: str, expi
         "org": organization_id,
         "role": role,
         "type": token_type,
+        "jti": str(uuid4()),
         "iat": now,
         "exp": now + expires,
     }

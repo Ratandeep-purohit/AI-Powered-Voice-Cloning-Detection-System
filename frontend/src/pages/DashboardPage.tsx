@@ -1,7 +1,7 @@
 /**
- * Dashboard stub — Phase 02 scope only.
- * Presents the authenticated identity in the shared Voice Guard light SaaS design.
+ * Authenticated workspace dashboard with Phase 03 audio intake support.
  */
+import { AnalysisIntakeCard } from "../components/AnalysisIntakeCard";
 import { useAuth } from "../context/AuthContext";
 import "./DashboardPage.css";
 
@@ -34,21 +34,12 @@ function Icon({ name }: { name: IconName }) {
 export function DashboardPage() {
   const { user, logout } = useAuth();
   const displayName = user?.full_name ?? user?.email ?? "User";
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "VG";
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "VG";
 
   return (
     <div className="dashboard-shell">
       <aside className="dashboard-sidebar">
-        <div className="sidebar-brand">
-          <div className="brand-mark" aria-hidden="true">✓</div>
-          <span>Voice Guard</span>
-        </div>
-
+        <div className="sidebar-brand"><div className="brand-mark" aria-hidden="true">✓</div><span>Voice Guard</span></div>
         <nav className="sidebar-nav" aria-label="Primary navigation">
           <div className="sidebar-section-label">Workspace</div>
           <a className="sidebar-link active" href="#dashboard" aria-current="page"><Icon name="dashboard" /> Dashboard</a>
@@ -59,69 +50,36 @@ export function DashboardPage() {
           <a className="sidebar-link" href="#organization"><Icon name="organization" /> Organization</a>
           <a className="sidebar-link" href="#settings"><Icon name="settings" /> Settings</a>
         </nav>
-
-        <div className="phase-card">
-          <div className="phase-dot" />
-          <div>
-            <strong>Phase 02</strong>
-            <span>Authentication Foundation</span>
-            <small>v0.1.0</small>
-          </div>
-        </div>
+        <div className="phase-card"><div className="phase-dot" /><div><strong>Phase 03</strong><span>Analysis &amp; Audio Intake</span><small>v0.3.0</small></div></div>
       </aside>
 
       <div className="dashboard-content">
         <header className="dashboard-topbar">
-          <div className="search-box">
-            <Icon name="search" />
-            <span>Search anything...</span>
-          </div>
+          <div className="search-box"><Icon name="search" /><span>Search anything...</span></div>
           <div className="topbar-actions">
             <button className="icon-button" type="button" aria-label="Notifications"><Icon name="bell" /><span className="notification-dot" /></button>
-            <button className="profile-chip" type="button" aria-label="Account menu">
-              <span className="avatar">{initials}</span>
-              <span className="profile-copy"><strong>{displayName}</strong><small>{user?.role ?? "User"}</small></span>
-              <Icon name="chevron" />
-            </button>
+            <button className="profile-chip" type="button" aria-label="Account menu"><span className="avatar">{initials}</span><span className="profile-copy"><strong>{displayName}</strong><small>{user?.role ?? "User"}</small></span><Icon name="chevron" /></button>
             <button id="logout-btn" className="logout-btn" onClick={logout}>Sign out</button>
           </div>
         </header>
 
         <main className="dashboard-main" id="dashboard">
           <section className="welcome-card">
-            <div className="welcome-copy">
-              <span className="eyebrow">Voice Guard workspace</span>
-              <h1>Welcome back,</h1>
-              <p>{user?.email}</p>
-              <span className="role-badge">{user?.role}</span>
-            </div>
-            <div className="welcome-visual" aria-hidden="true">
-              <span className="wave wave-one" /><span className="wave wave-two" /><span className="wave wave-three" />
-              <div className="shield-mark">✓</div>
-            </div>
+            <div className="welcome-copy"><span className="eyebrow">Voice Guard workspace</span><h1>Welcome back,</h1><p>{user?.email}</p><span className="role-badge">{user?.role}</span></div>
+            <div className="welcome-visual" aria-hidden="true"><span className="wave wave-one" /><span className="wave wave-two" /><span className="wave wave-three" /><div className="shield-mark">✓</div></div>
           </section>
 
           <section className="info-grid" aria-label="Account overview">
-            <div className="info-item">
-              <div className="info-icon blue"><Icon name="building" /></div>
-              <div><span className="info-label">Organization</span><span className="info-value">{user?.organization_id}</span></div>
-            </div>
-            <div className="info-item">
-              <div className="info-icon green"><Icon name="status" /></div>
-              <div><span className="info-label">Account Status</span><span className="info-value status-active">Active</span></div>
-            </div>
-            <div className="info-item">
-              <div className="info-icon purple"><Icon name="clock" /></div>
-              <div><span className="info-label">Last Login</span><span className="info-value">{user?.last_login_at ? new Date(user.last_login_at).toLocaleString() : "First login"}</span></div>
-            </div>
+            <div className="info-item"><div className="info-icon blue"><Icon name="building" /></div><div><span className="info-label">Organization</span><span className="info-value">{user?.organization_id}</span></div></div>
+            <div className="info-item"><div className="info-icon green"><Icon name="status" /></div><div><span className="info-label">Account Status</span><span className="info-value status-active">Active</span></div></div>
+            <div className="info-item"><div className="info-icon purple"><Icon name="clock" /></div><div><span className="info-label">Last Login</span><span className="info-value">{user?.last_login_at ? new Date(user.last_login_at).toLocaleString() : "First login"}</span></div></div>
           </section>
 
-          <section className="phase-notice">
+          <AnalysisIntakeCard />
+
+          <section className="phase-notice" id="analysis">
             <div className="notice-icon"><Icon name="check" /></div>
-            <div>
-              <h2>Phase 02 — Authentication Foundation</h2>
-              <p>Full analysis dashboard is implemented in Phase 04+. Authentication, RBAC, and tenant isolation are fully operational.</p>
-            </div>
+            <div><h2>Phase 03 — Analysis Session &amp; Audio Intake</h2><p>Authenticated users can create tenant-scoped analysis sessions and submit validated audio. Detection, preprocessing, and AI inference remain outside this phase.</p></div>
           </section>
         </main>
       </div>

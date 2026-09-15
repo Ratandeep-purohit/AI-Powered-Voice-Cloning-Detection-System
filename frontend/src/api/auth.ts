@@ -27,6 +27,7 @@ let _accessToken: string | null = null;
 export function setAccessToken(token: string): void { _accessToken = token; }
 export function clearAccessToken(): void { _accessToken = null; }
 export function hasAccessToken(): boolean { return _accessToken !== null; }
+export function getAccessToken(): string | null { return _accessToken; }
 
 const apiClient = axios.create({
   baseURL: API_BASE,

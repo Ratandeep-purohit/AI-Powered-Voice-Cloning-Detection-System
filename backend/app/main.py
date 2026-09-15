@@ -12,6 +12,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from app.api.v1.analysis import router as analysis_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
 from app.api.v1.register import router as register_router
@@ -38,7 +39,7 @@ def create_app() -> FastAPI:
     _app = FastAPI(
         title="AI-Powered Voice Cloning Detection & Prevention System",
         description="Real-time detection and prevention of voice cloning impersonation attacks.",
-        version="0.2.0",
+        version="0.3.0",
         lifespan=lifespan,
         docs_url="/api/docs" if settings.is_development else None,
         redoc_url="/api/redoc" if settings.is_development else None,
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     _app.include_router(auth_router, prefix="/api/v1")
     _app.include_router(register_router, prefix="/api/v1")
     _app.include_router(users_router, prefix="/api/v1")
+    _app.include_router(analysis_router, prefix="/api/v1")
     return _app
 
 

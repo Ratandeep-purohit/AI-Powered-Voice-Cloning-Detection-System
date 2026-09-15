@@ -15,8 +15,8 @@ build/
 .venv/
 venv/
 env/
-.env
 ENV/
+.env
 
 # Environment / secrets
 *.env
@@ -52,3 +52,6 @@ yarn-error.log*
 
 # Docker
 *.pid
+
+# Phase 03 local uploaded-audio storage
+storage/audio/

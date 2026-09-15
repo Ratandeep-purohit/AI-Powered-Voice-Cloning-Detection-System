@@ -1,18 +1,16 @@
 import logging
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 
-from app.db.session import check_database_connection, get_db
+from app.db.session import check_database_connection
 
 router = APIRouter(tags=["health"])
 logger = logging.getLogger(__name__)
 
 
 @router.get("/health")
-def health(db: Session = Depends(get_db)) -> JSONResponse:
-    del db
+def health() -> JSONResponse:
     database_ok = check_database_connection()
     payload = {
         "status": "healthy" if database_ok else "degraded",

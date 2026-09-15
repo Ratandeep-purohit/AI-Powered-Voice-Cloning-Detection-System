@@ -33,22 +33,14 @@ def _audit(db: Session, user: User, action: str, entity_id: UUID, request: Reque
 
 
 @router.post("", response_model=AnalysisSessionResponse, status_code=status.HTTP_201_CREATED)
-async def create_analysis_session(
-    payload: AnalysisSessionCreate,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
-) -> Call:
+async def create_analysis_session(payload: AnalysisSessionCreate, request: Request, db: Session = Depends(get_db), current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES))) -> Call:
     session = create_session(db, current_user, payload.external_reference, payload.caller_identifier)
     _audit(db, current_user, "SESSION_CREATED", session.id, request)
     return db.scalar(select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session.id))
 
 
 @router.get("", response_model=list[AnalysisSessionResponse])
-async def list_analysis_sessions(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[Call]:
+async def list_analysis_sessions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> list[Call]:
     return list(db.scalars(
         select(Call).options(selectinload(Call.audio_inputs))
         .where(Call.organization_id == current_user.organization_id)
@@ -57,30 +49,15 @@ async def list_analysis_sessions(
 
 
 @router.get("/{session_id}", response_model=AnalysisSessionResponse)
-async def get_analysis_session(
-    session_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> Call:
-    session = db.scalar(
-        select(Call).options(selectinload(Call.audio_inputs)).where(
-            Call.id == session_id,
-            Call.organization_id == current_user.organization_id,
-        )
-    )
+async def get_analysis_session(session_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)) -> Call:
+    session = db.scalar(select(Call).options(selectinload(Call.audio_inputs)).where(Call.id == session_id, Call.organization_id == current_user.organization_id))
     if session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis session not found")
     return session
 
 
 @router.post("/{session_id}/audio", response_model=AnalysisSessionResponse)
-async def upload_analysis_audio(
-    session_id: UUID,
-    request: Request,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
-) -> Call:
+async def upload_analysis_audio(session_id: UUID, request: Request, file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES))) -> Call:
     session = get_owned_session(db, current_user, session_id)
     if session is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Analysis session not found")
@@ -90,6 +67,7 @@ async def upload_analysis_audio(
     try:
         audio = store_audio_upload(db, current_user, session, file)
     except ValueError as exc:
+        _audit(db, current_user, "AUDIO_REJECTED", session.id, request, {"reason": str(exc)})
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
     finally:
         await file.close()

@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     audio_max_upload_size_mb: int = Field(default=25)
     audio_allowed_extensions: str = Field(default="wav,mp3,ogg,flac,m4a")
 
+    # Phase 04 preprocessing configuration. These values are configurable so
+    # the preprocessing target can be aligned with the eventual ML model.
+    audio_processing_sample_rate: int = Field(default=16000)
+    audio_processing_channels: int = Field(default=1)
+    audio_processing_max_duration_seconds: int = Field(default=1800)
+    audio_processing_ffmpeg_binary: str = Field(default="ffmpeg")
+
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() == "development"
@@ -69,6 +76,13 @@ class Settings(BaseSettings):
     def _audio_upload_size_positive(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("AUDIO_MAX_UPLOAD_SIZE_MB must be positive.")
+        return v
+
+    @field_validator("audio_processing_sample_rate", "audio_processing_channels", "audio_processing_max_duration_seconds")
+    @classmethod
+    def _audio_processing_values_positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("Audio processing configuration values must be positive.")
         return v
 
     def safe_database_url(self) -> str:

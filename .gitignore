@@ -55,3 +55,6 @@ yarn-error.log*
 
 # Phase 03 local uploaded-audio storage
 storage/audio/
+
+# Runtime-generated audio storage
+backend/storage/

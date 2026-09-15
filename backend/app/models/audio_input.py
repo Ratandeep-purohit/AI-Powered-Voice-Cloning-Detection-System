@@ -13,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, new_uuid
 
 if TYPE_CHECKING:
+    from app.models.audio_processing import AudioProcessingJob
     from app.models.call import Call
 
 VALID_INTAKE_STATUSES = ("PENDING", "VALIDATED", "REJECTED", "FAILED")
@@ -45,6 +46,9 @@ class AudioInput(Base):
     validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     call: Mapped["Call"] = relationship("Call", back_populates="audio_inputs")
+    processing_jobs: Mapped[list["AudioProcessingJob"]] = relationship(
+        "AudioProcessingJob", back_populates="audio_input", cascade="all, delete-orphan", lazy="select"
+    )
 
     __table_args__ = (
         CheckConstraint(

@@ -21,7 +21,6 @@ from dataclasses import dataclass
 
 import torch
 from torch import Tensor, nn
-import torch.nn.functional as F
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,9 +70,6 @@ class SincConv(nn.Module):
         self.stride = stride
         self.sample_rate = sample_rate
 
-        # Mel-spaced initial cutoffs. The filters remain ordinary learnable
-        # Conv1d weights after initialization, which keeps the forward pass
-        # fully compatible with standard PyTorch optimizers/checkpoints.
         low = 30.0
         high = sample_rate / 2.0 - 100.0
         hz = torch.linspace(low, high, out_channels + 1)
@@ -198,7 +194,6 @@ class AASISTModel(nn.Module):
             ResidualEncoderBlock(c2, c3, self.config.dropout),
         )
         self.feature_norm = nn.BatchNorm2d(c3)
-        self.feature_proj = nn.Conv2d(self.config.sinc_filters, 1, kernel_size=1, bias=False)
         self.node_pool = nn.AdaptiveAvgPool2d((8, 8))
         self.graph = GraphAttentionBlock(self.config.graph_dim, self.config.dropout)
         self.graph_pool = GraphPool(self.config.graph_dim, keep_ratio=0.5)
@@ -209,10 +204,6 @@ class AASISTModel(nn.Module):
             nn.Dropout(self.config.dropout),
             nn.Linear(self.config.graph_dim // 2, self.config.num_classes),
         )
-
-        # Feature projection adapts the encoder's channel dimension to the
-        # graph dimension without tying the graph module to the frontend size.
-        self.channel_projector = nn.Conv2d(c3, self.config.graph_dim, kernel_size=1, bias=False)
 
     def _validate_input(self, waveform: Tensor) -> None:
         if not isinstance(waveform, Tensor):
@@ -231,19 +222,17 @@ class AASISTModel(nn.Module):
 
         x = self.frontend(waveform)
         x = self.frontend_act(self.frontend_norm(x))
-        # SincConv returns [B, filter, time]. Treat the filterbank dimension
-        # as Conv2d channels and create a singleton spatial height: [B, 70, 1, T].
-        x = x.unsqueeze(2)
-        x = self.feature_proj(x)
+        # SincConv returns [B, filter, time]. Keep the filterbank as the
+        # spectro-temporal height so the residual encoder has a real 2D map:
+        # [B, 1, 70, T]. Three 2x2 pools reduce 70 -> 8 while retaining enough
+        # time resolution for the final adaptive 8x8 node grid.
+        x = x.unsqueeze(1)
         x = self.encoder(x)
         x = self.feature_norm(x)
-        x = self.channel_projector(x)
         x = self.node_pool(x)
         nodes = x.flatten(2).transpose(1, 2)
 
         if nodes.shape[1] != self.config.graph_nodes:
-            # The default 8x8 node grid is 64 nodes. Keep the configuration
-            # explicit so tests catch accidental architectural changes.
             raise RuntimeError(
                 f"Unexpected graph node count {nodes.shape[1]}; expected {self.config.graph_nodes}."
             )

@@ -11,6 +11,7 @@ from app.services.aasist_model import AASISTModel, AASISTModelConfig
 from app.services.aasist_training import (
     AASISTTrainer,
     AASISTTrainingConfig,
+    EpochMetrics,
     _binary_metrics,
     class_weights,
     resolve_device,
@@ -126,13 +127,16 @@ def test_checkpoint_round_trip(tmp_path: Path) -> None:
         mixed_precision=False,
     )
     trainer = AASISTTrainer(config, model=AASISTModel(AASISTModelConfig()))
-    metrics = type("M", (), {
-        "loss": 1.0, "samples": 2, "correct": 1,
-        "precision": 0.5, "recall": 0.5, "f1": 0.5,
-        "roc_auc": 0.5, "eer": 0.5,
-    })()
-    from app.services.aasist_training import EpochMetrics
-    epoch_metrics = EpochMetrics(**metrics.__dict__)
+    epoch_metrics = EpochMetrics(
+        loss=1.0,
+        samples=2,
+        correct=1,
+        precision=0.5,
+        recall=0.5,
+        f1=0.5,
+        roc_auc=0.5,
+        eer=0.5,
+    )
     path = trainer.save_checkpoint(tmp_path / "checkpoint.pt", 1, epoch_metrics, epoch_metrics)
     assert path.exists()
     resumed = AASISTTrainer(config, model=AASISTModel(AASISTModelConfig()))

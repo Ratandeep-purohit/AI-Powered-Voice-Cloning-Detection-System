@@ -204,6 +204,7 @@ class AASISTTrainer:
         self.start_epoch = 1
         self.best_f1 = -math.inf
         self.best_epoch = 0
+        self._optimizer_updates = 0
 
     def build_loaders(self) -> tuple[DataLoader, DataLoader]:
         train_dataset = ASVspoofTorchDataset(self.config.dataset_root, "train")
@@ -290,8 +291,12 @@ class AASISTTrainer:
                             self.model.parameters(),
                             max_norm=5.0,
                         )
+                        scale_before = self.scaler.get_scale()
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
+                        scale_after = self.scaler.get_scale()
+                        if scale_after >= scale_before:
+                            self._optimizer_updates += 1
                         self.optimizer.zero_grad(set_to_none=True)
 
             probabilities = AASISTModel.probabilities(logits)
@@ -432,6 +437,7 @@ class AASISTTrainer:
 
         for epoch in range(self.start_epoch, self.config.epochs + 1):
             print(f"\nEpoch {epoch}/{self.config.epochs}")
+            optimizer_updates_before = self._optimizer_updates
             train_metrics = self.train_epoch(
                 train_loader,
                 self.config.max_train_batches,
@@ -440,7 +446,8 @@ class AASISTTrainer:
                 dev_loader,
                 self.config.max_dev_batches,
             )
-            self.scheduler.step()
+            if self._optimizer_updates > optimizer_updates_before:
+                self.scheduler.step()
 
             record = {
                 "epoch": epoch,

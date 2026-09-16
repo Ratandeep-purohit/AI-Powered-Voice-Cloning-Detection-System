@@ -19,6 +19,7 @@ from typing import Any
 import torch
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 from app.services.aasist_model import AASISTModel, AASISTModelConfig
 from app.services.audio_model_input import AudioModelInputPreprocessor, ModelInputConfig
@@ -83,14 +84,10 @@ class EpochMetrics:
     roc_auc: float | None
     eer: float | None
 
-    @property
-    def accuracy(self) -> float:
-        return self.correct / self.samples if self.samples else 0.0
-
 
 @dataclass(frozen=True, slots=True)
 class TrainingResult:
-    """Summary of the complete training run."""
+    """Final result returned by the training engine."""
 
     best_epoch: int
     best_f1: float
@@ -100,7 +97,7 @@ class TrainingResult:
 
 
 def resolve_device(requested: str) -> torch.device:
-    """Resolve an explicit or automatic compute device."""
+    """Resolve the requested compute device with CUDA validation."""
 
     if requested == "cpu":
         return torch.device("cpu")
@@ -112,10 +109,10 @@ def resolve_device(requested: str) -> torch.device:
 
 
 def class_weights(real_count: int, spoof_count: int, device: torch.device) -> Tensor:
-    """Return inverse-frequency weights for REAL=0 and SPOOF=1."""
+    """Return inverse-frequency weights for [REAL, SPOOF]."""
 
     if real_count <= 0 or spoof_count <= 0:
-        raise ValueError("Both REAL and SPOOF counts must be positive.")
+        raise ValueError("Both classes must have positive counts.")
     total = real_count + spoof_count
     weights = torch.tensor(
         [total / (2.0 * real_count), total / (2.0 * spoof_count)],
@@ -125,128 +122,114 @@ def class_weights(real_count: int, spoof_count: int, device: torch.device) -> Te
     return weights
 
 
-def _binary_metrics(labels: Tensor, probabilities: Tensor, predictions: Tensor) -> tuple[float, float, float, float | None, float | None]:
-    """Compute precision, recall, F1, ROC-AUC, and EER for binary labels."""
+def _binary_metrics(labels: Tensor, spoof_probabilities: Tensor, predictions: Tensor) -> tuple[float, float, float, float | None, float | None]:
+    """Compute classification metrics without requiring sklearn."""
 
-    labels = labels.detach().cpu().long().flatten()
-    probabilities = probabilities.detach().cpu().float().flatten()
-    predictions = predictions.detach().cpu().long().flatten()
+    labels = labels.to(torch.int64).flatten()
+    spoof_probabilities = spoof_probabilities.to(torch.float64).flatten()
+    predictions = predictions.to(torch.int64).flatten()
+    if labels.numel() == 0:
+        raise ValueError("Metric inputs must not be empty.")
 
     tp = int(((predictions == 1) & (labels == 1)).sum())
     fp = int(((predictions == 1) & (labels == 0)).sum())
     fn = int(((predictions == 0) & (labels == 1)).sum())
     precision = tp / (tp + fp) if tp + fp else 0.0
     recall = tp / (tp + fn) if tp + fn else 0.0
-    f1 = 2.0 * precision * recall / (precision + recall) if precision + recall else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
 
-    positives = int((labels == 1).sum())
-    negatives = int((labels == 0).sum())
+    positives = spoof_probabilities[labels == 1]
+    negatives = spoof_probabilities[labels == 0]
     roc_auc: float | None = None
     eer: float | None = None
+    if positives.numel() and negatives.numel():
+        comparisons = (positives[:, None] > negatives[None, :]).double()
+        ties = (positives[:, None] == negatives[None, :]).double() * 0.5
+        roc_auc = float((comparisons + ties).mean())
 
-    if positives and negatives:
-        order = torch.argsort(probabilities, descending=True)
-        sorted_labels = labels[order]
-        tps = torch.cumsum((sorted_labels == 1).float(), dim=0)
-        fps = torch.cumsum((sorted_labels == 0).float(), dim=0)
-        tpr = tps / positives
-        fpr = fps / negatives
-        auc_x = torch.cat([torch.zeros(1), fpr])
-        auc_y = torch.cat([torch.zeros(1), tpr])
-        roc_auc = float(torch.trapezoid(auc_y, auc_x))
-
-        fnr = 1.0 - tpr
-        gap = torch.abs(fpr - fnr)
-        idx = int(torch.argmin(gap))
-        eer = float((fpr[idx] + fnr[idx]) / 2.0)
-
+        thresholds = torch.unique(torch.cat((positives, negatives)), sorted=True)
+        thresholds = torch.cat((thresholds[:1] - 1e-12, thresholds, thresholds[-1:] + 1e-12))
+        best_gap = float("inf")
+        best_eer = 1.0
+        for threshold in thresholds:
+            false_accept = float((negatives >= threshold).double().mean())
+            false_reject = float((positives < threshold).double().mean())
+            gap = abs(false_accept - false_reject)
+            if gap < best_gap:
+                best_gap = gap
+                best_eer = (false_accept + false_reject) / 2.0
+        eer = best_eer
     return precision, recall, f1, roc_auc, eer
 
 
 class AASISTTrainer:
-    """Train and validate an :class:`AASISTModel`."""
+    """Train and validate the project AASIST-family spoof detector."""
 
-    def __init__(
-        self,
-        config: AASISTTrainingConfig,
-        model: AASISTModel | None = None,
-    ) -> None:
+    def __init__(self, config: AASISTTrainingConfig) -> None:
         config.validate()
         self.config = config
         self.device = resolve_device(config.device)
-        self.model = model or AASISTModel(AASISTModelConfig())
-        self.model.to(self.device)
-        self.preprocessor = AudioModelInputPreprocessor(
-            ModelInputConfig(
-                sample_rate=16_000,
-                target_duration_seconds=config.target_duration_seconds,
-            )
+        self.model = AASISTModel(AASISTModelConfig()).to(self.device)
+        self.input_preprocessor = AudioModelInputPreprocessor(
+            ModelInputConfig(sample_rate=16_000, target_duration_seconds=config.target_duration_seconds)
         )
-
+        train_dataset = ASVspoofTorchDataset(config.dataset_root, "train")
+        counts = train_dataset.label_counts
+        weights = class_weights(counts[0], counts[1], self.device)
+        self.loss_fn = nn.CrossEntropyLoss(weight=weights)
         self.optimizer = torch.optim.AdamW(
-            self.model.parameters(),
-            lr=config.learning_rate,
-            weight_decay=config.weight_decay,
+            self.model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
         )
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer,
-            T_max=config.epochs,
+            self.optimizer, T_max=max(config.epochs, 2)
         )
-        self.loss_fn = nn.CrossEntropyLoss(
-            weight=torch.tensor([1.0, 1.0], dtype=torch.float32, device=self.device)
-        )
-        self.use_amp = config.mixed_precision and self.device.type == "cuda"
+        self.use_amp = self.device.type == "cuda" and config.mixed_precision
         self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
         self.start_epoch = 1
         self.best_f1 = -math.inf
         self.best_epoch = 0
 
     def build_loaders(self) -> tuple[DataLoader, DataLoader]:
-        """Build train/dev loaders from the validated ASVspoof dataset layer."""
-
-        train = ASVspoofTorchDataset(self.config.dataset_root, "train", sample_rate=16_000)
-        dev = ASVspoofTorchDataset(self.config.dataset_root, "dev", sample_rate=16_000)
-
-        counts = train.resolver.parser.label_counts("train")
-        weights = class_weights(counts["REAL"], counts["SPOOF"], self.device)
-        self.loss_fn = nn.CrossEntropyLoss(weight=weights)
-
+        train_dataset = ASVspoofTorchDataset(self.config.dataset_root, "train")
+        dev_dataset = ASVspoofTorchDataset(self.config.dataset_root, "dev")
         common = {
             "batch_size": self.config.batch_size,
             "num_workers": self.config.num_workers,
             "pin_memory": self.device.type == "cuda",
             "collate_fn": asvspoof_collate_fn,
-            "persistent_workers": self.config.num_workers > 0,
         }
-        train_loader = DataLoader(train, shuffle=True, drop_last=False, **common)
-        dev_loader = DataLoader(dev, shuffle=False, drop_last=False, **common)
-        return train_loader, dev_loader
-
-    def _prepare_batch(self, batch: dict[str, Any]) -> tuple[Tensor, Tensor]:
-        prepared = self.preprocessor.prepare_batch(
-            batch["waveforms"],
-            attention_mask=batch["attention_mask"],
+        return (
+            DataLoader(train_dataset, shuffle=True, **common),
+            DataLoader(dev_dataset, shuffle=False, **common),
         )
-        waveforms = prepared["waveforms"].to(self.device, non_blocking=True)
-        labels = batch["labels"].to(self.device, non_blocking=True)
-        return waveforms, labels
 
     def _run_epoch(self, loader: DataLoader, training: bool, max_batches: int | None = None) -> EpochMetrics:
         self.model.train(training)
+        if training:
+            self.optimizer.zero_grad(set_to_none=True)
         total_loss = 0.0
         total_samples = 0
         total_correct = 0
         all_labels: list[Tensor] = []
         all_probabilities: list[Tensor] = []
         all_predictions: list[Tensor] = []
+        iterator = loader
+        total_batches = min(len(loader), max_batches) if max_batches is not None else len(loader)
+        description = "Train" if training else "Dev"
+        progress = tqdm(
+            iterator,
+            total=total_batches,
+            desc=description,
+            unit="batch",
+            dynamic_ncols=True,
+            leave=True,
+        )
 
-        if training:
-            self.optimizer.zero_grad(set_to_none=True)
-
-        for batch_index, batch in enumerate(loader, start=1):
+        for batch_index, batch in enumerate(progress, start=1):
             if max_batches is not None and batch_index > max_batches:
                 break
-            waveforms, labels = self._prepare_batch(batch)
+            waveforms = self.input_preprocessor(batch.waveforms).to(self.device, non_blocking=True)
+            labels = batch.labels.to(self.device, non_blocking=True)
 
             with torch.set_grad_enabled(training):
                 with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.use_amp):
@@ -258,7 +241,7 @@ class AASISTTrainer:
                     self.scaler.scale(scaled_loss).backward()
                     should_step = (
                         batch_index % self.config.gradient_accumulation_steps == 0
-                        or batch_index == (max_batches or len(loader))
+                        or batch_index == total_batches
                     )
                     if should_step:
                         self.scaler.unscale_(self.optimizer)
@@ -276,6 +259,7 @@ class AASISTTrainer:
             all_labels.append(labels.detach().cpu())
             all_probabilities.append(probabilities[:, AASISTModel.SPOOF_CLASS].detach().cpu())
             all_predictions.append(predictions.detach().cpu())
+            progress.set_postfix(loss=f"{total_loss / total_samples:.4f}", refresh=False)
 
         if not total_samples:
             raise RuntimeError("No samples were processed in the epoch.")
@@ -297,13 +281,11 @@ class AASISTTrainer:
 
     def train_epoch(self, loader: DataLoader, max_batches: int | None = None) -> EpochMetrics:
         """Run one optimizer epoch."""
-
         return self._run_epoch(loader, training=True, max_batches=max_batches)
 
     @torch.no_grad()
     def validate_epoch(self, loader: DataLoader, max_batches: int | None = None) -> EpochMetrics:
         """Run one validation epoch without gradient updates."""
-
         return self._run_epoch(loader, training=False, max_batches=max_batches)
 
     def _checkpoint_payload(self, epoch: int, train_metrics: EpochMetrics, dev_metrics: EpochMetrics) -> dict[str, Any]:
@@ -323,7 +305,6 @@ class AASISTTrainer:
 
     def save_checkpoint(self, path: str | Path, epoch: int, train_metrics: EpochMetrics, dev_metrics: EpochMetrics) -> Path:
         """Atomically save a resumable checkpoint."""
-
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
@@ -338,7 +319,6 @@ class AASISTTrainer:
 
     def resume(self, path: str | Path) -> None:
         """Resume model and optimizer state from a checkpoint."""
-
         checkpoint = torch.load(path, map_location=self.device, weights_only=False)
         required = {"epoch", "model_state_dict", "optimizer_state_dict", "scheduler_state_dict", "scaler_state_dict"}
         missing = required.difference(checkpoint)
@@ -354,7 +334,6 @@ class AASISTTrainer:
 
     def fit(self) -> TrainingResult:
         """Run configured training and persist latest/best checkpoints."""
-
         train_loader, dev_loader = self.build_loaders()
         checkpoint_dir = Path(self.config.checkpoint_dir)
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -363,6 +342,7 @@ class AASISTTrainer:
         history: list[dict[str, Any]] = []
 
         for epoch in range(self.start_epoch, self.config.epochs + 1):
+            print(f"\nEpoch {epoch}/{self.config.epochs}")
             train_metrics = self.train_epoch(train_loader, self.config.max_train_batches)
             dev_metrics = self.validate_epoch(dev_loader, self.config.max_dev_batches)
             self.scheduler.step()
@@ -374,10 +354,16 @@ class AASISTTrainer:
                 "dev": asdict(dev_metrics),
             }
             history.append(record)
+            print(
+                f"Epoch {epoch}/{self.config.epochs} complete | "
+                f"Train loss {train_metrics.loss:.4f} F1 {train_metrics.f1:.4f} | "
+                f"Dev loss {dev_metrics.loss:.4f} F1 {dev_metrics.f1:.4f}"
+            )
             if dev_metrics.f1 > self.best_f1:
                 self.best_f1 = dev_metrics.f1
                 self.best_epoch = epoch
                 self.save_checkpoint(best_path, epoch, train_metrics, dev_metrics)
+                print(f"New best model: Dev F1 {self.best_f1:.4f}")
             if self.config.checkpoint_every_epoch or epoch == self.config.epochs:
                 self.save_checkpoint(latest_path, epoch, train_metrics, dev_metrics)
 
@@ -395,5 +381,4 @@ class AASISTTrainer:
 
 def build_training_engine(config: AASISTTrainingConfig) -> AASISTTrainer:
     """Factory used by scripts/tests to construct a validated trainer."""
-
     return AASISTTrainer(config)

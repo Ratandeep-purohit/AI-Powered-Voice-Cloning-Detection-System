@@ -23,7 +23,6 @@ from tqdm.auto import tqdm
 
 from app.services.aasist_model import AASISTModel, AASISTModelConfig
 from app.services.audio_model_input import AudioModelInputPreprocessor, ModelInputConfig
-from app.services.asvspoof import ASVspoofProtocolError
 from app.services.asvspoof_torch import ASVspoofTorchDataset, asvspoof_collate_fn
 
 
@@ -114,15 +113,18 @@ def class_weights(real_count: int, spoof_count: int, device: torch.device) -> Te
     if real_count <= 0 or spoof_count <= 0:
         raise ValueError("Both classes must have positive counts.")
     total = real_count + spoof_count
-    weights = torch.tensor(
+    return torch.tensor(
         [total / (2.0 * real_count), total / (2.0 * spoof_count)],
         dtype=torch.float32,
         device=device,
     )
-    return weights
 
 
-def _binary_metrics(labels: Tensor, spoof_probabilities: Tensor, predictions: Tensor) -> tuple[float, float, float, float | None, float | None]:
+def _binary_metrics(
+    labels: Tensor,
+    spoof_probabilities: Tensor,
+    predictions: Tensor,
+) -> tuple[float, float, float, float | None, float | None]:
     """Compute classification metrics without requiring sklearn."""
 
     labels = labels.to(torch.int64).flatten()
@@ -165,23 +167,37 @@ def _binary_metrics(labels: Tensor, spoof_probabilities: Tensor, predictions: Te
 class AASISTTrainer:
     """Train and validate the project AASIST-family spoof detector."""
 
-    def __init__(self, config: AASISTTrainingConfig) -> None:
+    def __init__(
+        self,
+        config: AASISTTrainingConfig,
+        model: nn.Module | None = None,
+        preprocessor: AudioModelInputPreprocessor | None = None,
+    ) -> None:
         config.validate()
         self.config = config
         self.device = resolve_device(config.device)
-        self.model = AASISTModel(AASISTModelConfig()).to(self.device)
-        self.input_preprocessor = AudioModelInputPreprocessor(
-            ModelInputConfig(sample_rate=16_000, target_duration_seconds=config.target_duration_seconds)
+        self.model = (model or AASISTModel(AASISTModelConfig())).to(self.device)
+        self.preprocessor = preprocessor or AudioModelInputPreprocessor(
+            ModelInputConfig(
+                sample_rate=16_000,
+                target_duration_seconds=config.target_duration_seconds,
+            )
         )
+        # Keep the descriptive alias for callers that already use it.
+        self.input_preprocessor = self.preprocessor
+
         train_dataset = ASVspoofTorchDataset(config.dataset_root, "train")
         counts = train_dataset.label_counts
         weights = class_weights(counts[0], counts[1], self.device)
         self.loss_fn = nn.CrossEntropyLoss(weight=weights)
         self.optimizer = torch.optim.AdamW(
-            self.model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay
+            self.model.parameters(),
+            lr=config.learning_rate,
+            weight_decay=config.weight_decay,
         )
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=max(config.epochs, 2)
+            self.optimizer,
+            T_max=max(config.epochs, 2),
         )
         self.use_amp = self.device.type == "cuda" and config.mixed_precision
         self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
@@ -203,10 +219,16 @@ class AASISTTrainer:
             DataLoader(dev_dataset, shuffle=False, **common),
         )
 
-    def _run_epoch(self, loader: DataLoader, training: bool, max_batches: int | None = None) -> EpochMetrics:
+    def _run_epoch(
+        self,
+        loader: DataLoader,
+        training: bool,
+        max_batches: int | None = None,
+    ) -> EpochMetrics:
         self.model.train(training)
         if training:
             self.optimizer.zero_grad(set_to_none=True)
+
         total_loss = 0.0
         total_samples = 0
         total_correct = 0
@@ -228,21 +250,33 @@ class AASISTTrainer:
             if max_batches is not None and batch_index > max_batches:
                 break
 
-            # asvspoof_collate_fn intentionally returns a dict so the batch can
-            # carry waveform tensors plus metadata such as IDs and paths.
             waveforms = batch["waveforms"]
             labels = batch["labels"]
+            attention_mask = batch.get("attention_mask")
             if not isinstance(waveforms, Tensor) or not isinstance(labels, Tensor):
-                raise TypeError("ASVspoof collate output must contain Tensor waveforms and labels.")
+                raise TypeError(
+                    "ASVspoof collate output must contain Tensor waveforms and labels."
+                )
+            if attention_mask is not None and not isinstance(attention_mask, Tensor):
+                raise TypeError("attention_mask must be a torch.Tensor when provided.")
 
-            waveforms = self.input_preprocessor(waveforms).to(self.device, non_blocking=True)
+            prepared = self.preprocessor.prepare_batch(waveforms, attention_mask)
+            waveforms = prepared["waveforms"].to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
 
             with torch.set_grad_enabled(training):
-                with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.use_amp):
+                with torch.autocast(
+                    device_type=self.device.type,
+                    dtype=torch.float16,
+                    enabled=self.use_amp,
+                ):
                     logits = self.model(waveforms)
                     loss = self.loss_fn(logits, labels)
-                    scaled_loss = loss / self.config.gradient_accumulation_steps if training else loss
+                    scaled_loss = (
+                        loss / self.config.gradient_accumulation_steps
+                        if training
+                        else loss
+                    )
 
                 if training:
                     self.scaler.scale(scaled_loss).backward()
@@ -252,7 +286,10 @@ class AASISTTrainer:
                     )
                     if should_step:
                         self.scaler.unscale_(self.optimizer)
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=5.0)
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(),
+                            max_norm=5.0,
+                        )
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
                         self.optimizer.zero_grad(set_to_none=True)
@@ -264,9 +301,14 @@ class AASISTTrainer:
             total_samples += batch_size
             total_correct += int((predictions == labels).sum().item())
             all_labels.append(labels.detach().cpu())
-            all_probabilities.append(probabilities[:, AASISTModel.SPOOF_CLASS].detach().cpu())
+            all_probabilities.append(
+                probabilities[:, AASISTModel.SPOOF_CLASS].detach().cpu()
+            )
             all_predictions.append(predictions.detach().cpu())
-            progress.set_postfix(loss=f"{total_loss / total_samples:.4f}", refresh=False)
+            progress.set_postfix(
+                loss=f"{total_loss / total_samples:.4f}",
+                refresh=False,
+            )
 
         if not total_samples:
             raise RuntimeError("No samples were processed in the epoch.")
@@ -274,7 +316,11 @@ class AASISTTrainer:
         labels = torch.cat(all_labels)
         probabilities = torch.cat(all_probabilities)
         predictions = torch.cat(all_predictions)
-        precision, recall, f1, roc_auc, eer = _binary_metrics(labels, probabilities, predictions)
+        precision, recall, f1, roc_auc, eer = _binary_metrics(
+            labels,
+            probabilities,
+            predictions,
+        )
         return EpochMetrics(
             loss=total_loss / total_samples,
             samples=total_samples,
@@ -286,16 +332,29 @@ class AASISTTrainer:
             eer=eer,
         )
 
-    def train_epoch(self, loader: DataLoader, max_batches: int | None = None) -> EpochMetrics:
+    def train_epoch(
+        self,
+        loader: DataLoader,
+        max_batches: int | None = None,
+    ) -> EpochMetrics:
         """Run one optimizer epoch."""
         return self._run_epoch(loader, training=True, max_batches=max_batches)
 
     @torch.no_grad()
-    def validate_epoch(self, loader: DataLoader, max_batches: int | None = None) -> EpochMetrics:
+    def validate_epoch(
+        self,
+        loader: DataLoader,
+        max_batches: int | None = None,
+    ) -> EpochMetrics:
         """Run one validation epoch without gradient updates."""
         return self._run_epoch(loader, training=False, max_batches=max_batches)
 
-    def _checkpoint_payload(self, epoch: int, train_metrics: EpochMetrics, dev_metrics: EpochMetrics) -> dict[str, Any]:
+    def _checkpoint_payload(
+        self,
+        epoch: int,
+        train_metrics: EpochMetrics,
+        dev_metrics: EpochMetrics,
+    ) -> dict[str, Any]:
         return {
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
@@ -310,14 +369,27 @@ class AASISTTrainer:
             "device": str(self.device),
         }
 
-    def save_checkpoint(self, path: str | Path, epoch: int, train_metrics: EpochMetrics, dev_metrics: EpochMetrics) -> Path:
+    def save_checkpoint(
+        self,
+        path: str | Path,
+        epoch: int,
+        train_metrics: EpochMetrics,
+        dev_metrics: EpochMetrics,
+    ) -> Path:
         """Atomically save a resumable checkpoint."""
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
-        fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+        fd, temporary = tempfile.mkstemp(
+            prefix=f".{target.name}.",
+            suffix=".tmp",
+            dir=target.parent,
+        )
         os.close(fd)
         try:
-            torch.save(self._checkpoint_payload(epoch, train_metrics, dev_metrics), temporary)
+            torch.save(
+                self._checkpoint_payload(epoch, train_metrics, dev_metrics),
+                temporary,
+            )
             os.replace(temporary, target)
         finally:
             if os.path.exists(temporary):
@@ -326,8 +398,18 @@ class AASISTTrainer:
 
     def resume(self, path: str | Path) -> None:
         """Resume model and optimizer state from a checkpoint."""
-        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
-        required = {"epoch", "model_state_dict", "optimizer_state_dict", "scheduler_state_dict", "scaler_state_dict"}
+        checkpoint = torch.load(
+            path,
+            map_location=self.device,
+            weights_only=False,
+        )
+        required = {
+            "epoch",
+            "model_state_dict",
+            "optimizer_state_dict",
+            "scheduler_state_dict",
+            "scaler_state_dict",
+        }
         missing = required.difference(checkpoint)
         if missing:
             raise ValueError(f"Checkpoint is missing fields: {sorted(missing)}")
@@ -350,8 +432,14 @@ class AASISTTrainer:
 
         for epoch in range(self.start_epoch, self.config.epochs + 1):
             print(f"\nEpoch {epoch}/{self.config.epochs}")
-            train_metrics = self.train_epoch(train_loader, self.config.max_train_batches)
-            dev_metrics = self.validate_epoch(dev_loader, self.config.max_dev_batches)
+            train_metrics = self.train_epoch(
+                train_loader,
+                self.config.max_train_batches,
+            )
+            dev_metrics = self.validate_epoch(
+                dev_loader,
+                self.config.max_dev_batches,
+            )
             self.scheduler.step()
 
             record = {
@@ -366,16 +454,31 @@ class AASISTTrainer:
                 f"Train loss {train_metrics.loss:.4f} F1 {train_metrics.f1:.4f} | "
                 f"Dev loss {dev_metrics.loss:.4f} F1 {dev_metrics.f1:.4f}"
             )
+
             if dev_metrics.f1 > self.best_f1:
                 self.best_f1 = dev_metrics.f1
                 self.best_epoch = epoch
-                self.save_checkpoint(best_path, epoch, train_metrics, dev_metrics)
+                self.save_checkpoint(
+                    best_path,
+                    epoch,
+                    train_metrics,
+                    dev_metrics,
+                )
                 print(f"New best model: Dev F1 {self.best_f1:.4f}")
+
             if self.config.checkpoint_every_epoch or epoch == self.config.epochs:
-                self.save_checkpoint(latest_path, epoch, train_metrics, dev_metrics)
+                self.save_checkpoint(
+                    latest_path,
+                    epoch,
+                    train_metrics,
+                    dev_metrics,
+                )
 
             history_path = checkpoint_dir / "history.json"
-            history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
+            history_path.write_text(
+                json.dumps(history, indent=2),
+                encoding="utf-8",
+            )
 
         if self.best_epoch == 0:
             raise RuntimeError("Training completed without producing a best checkpoint.")

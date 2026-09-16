@@ -10,7 +10,7 @@ from app.services.asvspoof import ASVspoofProtocolError, ASVspoofProtocolParser
 
 
 def _write_protocol(root: Path, filename: str, content: str) -> Path:
-    protocol_dir = root / "ASVspoof2019_LA_asv_protocols"
+    protocol_dir = root / "ASVspoof2019_LA_cm_protocols"
     protocol_dir.mkdir(parents=True)
     path = protocol_dir / filename
     path.write_text(content, encoding="utf-8")

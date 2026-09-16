@@ -6,7 +6,7 @@ from app.services.asvspoof_integrity import ASVspoofIntegrityValidator
 
 
 def _make_dataset(root: Path) -> None:
-    protocols = root / "ASVspoof2019_LA_asv_protocols"
+    protocols = root / "ASVspoof2019_LA_cm_protocols"
     protocols.mkdir(parents=True)
     (protocols / "ASVspoof2019.LA.cm.train.trn.txt").write_text(
         "LA_0001 LA_T_1 - - bonafide\nLA_0002 LA_T_2 - - spoof\n",
@@ -52,7 +52,7 @@ def test_integrity_report_detects_missing_audio(tmp_path: Path) -> None:
 
 def test_integrity_report_detects_duplicate_audio_ids(tmp_path: Path) -> None:
     _make_dataset(tmp_path)
-    protocol = tmp_path / "ASVspoof2019_LA_asv_protocols" / "ASVspoof2019.LA.cm.train.trn.txt"
+    protocol = tmp_path / "ASVspoof2019_LA_cm_protocols" / "ASVspoof2019.LA.cm.train.trn.txt"
     protocol.write_text(
         "LA_0001 LA_T_1 - - bonafide\nLA_0001 LA_T_1 - - bonafide\n",
         encoding="utf-8",

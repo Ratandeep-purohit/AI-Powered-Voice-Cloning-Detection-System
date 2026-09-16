@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     audio_processing_max_duration_seconds: int = Field(default=1800)
     audio_processing_ffmpeg_binary: str = Field(default="ffmpeg")
 
+    # Phase 05 ASVspoof 2019 LA dataset configuration. The dataset itself is
+    # intentionally external to the repository and must not be committed.
+    asvspoof_dataset_root: str = Field(default="")
+
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() == "development"

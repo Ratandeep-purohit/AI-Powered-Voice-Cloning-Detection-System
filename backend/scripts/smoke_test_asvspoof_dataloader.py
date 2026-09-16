@@ -7,7 +7,15 @@ it requires the real ASVspoof 2019 LA corpus on the local machine.
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+
+# The script lives in backend/scripts, while the application package lives in
+# backend/app. Add the backend directory explicitly so the script can be run
+# directly with `python scripts/smoke_test_asvspoof_dataloader.py`.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 import torch
 from torch.utils.data import DataLoader

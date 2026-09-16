@@ -231,7 +231,9 @@ class AASISTModel(nn.Module):
 
         x = self.frontend(waveform)
         x = self.frontend_act(self.frontend_norm(x))
-        x = x.unsqueeze(1)  # [B, 1, filter, time]
+        # SincConv returns [B, filter, time]. Treat the filterbank dimension
+        # as Conv2d channels and create a singleton spatial height: [B, 70, 1, T].
+        x = x.unsqueeze(2)
         x = self.feature_proj(x)
         x = self.encoder(x)
         x = self.feature_norm(x)

@@ -58,6 +58,20 @@ class ASVspoofTorchDataset(Dataset[ASVspoofTorchSample]):
         self.entries = self.resolver.parser.load_split(self.split)
         self.resolutions = self.resolver.resolve_split(self.split, self.entries)
 
+    @property
+    def label_counts(self) -> dict[int, int]:
+        """Return dataset label counts using the project convention REAL=0, SPOOF=1."""
+        counts = {0: 0, 1: 0}
+        for entry in self.entries:
+            try:
+                label_id = self.LABEL_TO_ID[entry.label]
+            except KeyError as exc:
+                raise ASVspoofProtocolError(
+                    f"Unsupported ASVspoof label '{entry.label}'."
+                ) from exc
+            counts[label_id] += 1
+        return counts
+
     def __len__(self) -> int:
         return len(self.resolutions)
 

@@ -96,7 +96,10 @@ def main() -> None:
     if not report.passed:
         raise SystemExit("ASVspoof integrity validation failed; DataLoader smoke test aborted.")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Use an explicit CUDA index so tensor.device (cuda:0) compares equal to
+    # the target device. torch.device("cuda") is valid for transfers but does
+    # not carry the resolved device index used by CUDA tensors.
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Compute device: {device}")
     if device.type != "cuda":
         raise SystemExit("CUDA is not available; this smoke test requires the configured GPU environment.")

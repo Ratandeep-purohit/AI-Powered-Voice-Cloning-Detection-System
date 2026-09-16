@@ -120,7 +120,12 @@ def test_trainer_one_epoch_with_tiny_model() -> None:
     assert metrics.loss >= 0.0
 
 
-def test_checkpoint_round_trip(tmp_path: Path) -> None:
+def test_checkpoint_round_trip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class CheckpointDataset:
+        label_counts = (2_580, 22_800)
+
+    monkeypatch.setattr("app.services.aasist_training.ASVspoofTorchDataset", CheckpointDataset)
+
     config = AASISTTrainingConfig(
         dataset_root=str(tmp_path),
         device="cpu",

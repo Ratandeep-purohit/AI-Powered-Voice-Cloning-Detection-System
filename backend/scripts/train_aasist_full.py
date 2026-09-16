@@ -1,16 +1,4 @@
-"""Full ASVspoof2019 LA training entry point for the Phase 05 detector.
-
-This script intentionally uses the existing AASIST training engine instead of
-creating a second training implementation. It performs a dataset integrity
-check, prints the real train/dev class counts, and starts an unrestricted
-training run unless explicit debug limits are supplied.
-
-Recommended RTX 3050 profile:
-    python scripts/train_aasist_full.py --dataset-root "E:\\DataSet\\LA"
-
-The ASVspoof dataset itself must remain outside Git; only code and metadata
-belong in the repository.
-"""
+"""Full ASVspoof2019 LA training entry point for the Phase 05 detector."""
 
 from __future__ import annotations
 
@@ -51,16 +39,15 @@ def parse_args() -> argparse.Namespace:
 
 def validate_dataset(root: str) -> None:
     print("Validating ASVspoof dataset integrity...")
-    report = ASVspoofIntegrityValidator(root).validate_all()
-    for split in ("train", "dev", "eval"):
-        result = report[split]
+    validator = ASVspoofIntegrityValidator(root)
+    results = [validator.validate_split(split) for split in ("train", "dev", "eval")]
+    for result in results:
         print(
-            f"{split}: total={result.total_entries} "
-            f"real={result.real_entries} spoof={result.spoof_entries} "
-            f"missing={result.missing_audio} duplicates={result.duplicate_audio_ids} "
+            f"{result.split}: total={result.total} real={result.real} spoof={result.spoof} "
+            f"missing={result.missing} duplicates={result.duplicate_audio_ids} "
             f"passed={result.passed}"
         )
-    if not report.passed:
+    if not all(result.passed for result in results):
         raise RuntimeError("ASVspoof dataset integrity validation failed; training aborted.")
 
 

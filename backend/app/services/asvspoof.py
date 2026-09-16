@@ -46,7 +46,7 @@ class ASVspoofProtocolParser:
         self.dataset_root = Path(root_value).expanduser().resolve()
 
     def protocol_path(self, split: str) -> Path:
-        """Return the protocol file path for a supported split."""
+        """Return the CM protocol file path for a supported split."""
         normalized_split = split.strip().lower()
         try:
             filename = PROTOCOL_FILES[normalized_split]
@@ -55,7 +55,7 @@ class ASVspoofProtocolParser:
             raise ASVspoofProtocolError(
                 f"Unsupported ASVspoof split '{split}'. Supported splits: {supported}."
             ) from exc
-        return self.dataset_root / "ASVspoof2019_LA_asv_protocols" / filename
+        return self.dataset_root / "ASVspoof2019_LA_cm_protocols" / filename
 
     def parse_file(self, protocol_path: str | Path) -> list[ASVspoofProtocolEntry]:
         """Parse one ASVspoof CM protocol file."""

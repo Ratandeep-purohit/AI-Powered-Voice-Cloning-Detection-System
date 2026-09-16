@@ -40,10 +40,10 @@ class ASVspoofProtocolParser:
     """Parse ASVspoof 2019 LA CM protocol files."""
 
     def __init__(self, dataset_root: str | Path) -> None:
-        root = Path(dataset_root).expanduser()
-        if not str(root).strip():
+        root_value = str(dataset_root).strip()
+        if not root_value:
             raise ASVspoofProtocolError("ASVspoof dataset root must not be empty.")
-        self.dataset_root = root.resolve()
+        self.dataset_root = Path(root_value).expanduser().resolve()
 
     def protocol_path(self, split: str) -> Path:
         """Return the protocol file path for a supported split."""

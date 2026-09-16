@@ -213,11 +213,10 @@ class AASISTTrainer:
         all_labels: list[Tensor] = []
         all_probabilities: list[Tensor] = []
         all_predictions: list[Tensor] = []
-        iterator = loader
         total_batches = min(len(loader), max_batches) if max_batches is not None else len(loader)
         description = "Train" if training else "Dev"
         progress = tqdm(
-            iterator,
+            loader,
             total=total_batches,
             desc=description,
             unit="batch",
@@ -228,8 +227,16 @@ class AASISTTrainer:
         for batch_index, batch in enumerate(progress, start=1):
             if max_batches is not None and batch_index > max_batches:
                 break
-            waveforms = self.input_preprocessor(batch.waveforms).to(self.device, non_blocking=True)
-            labels = batch.labels.to(self.device, non_blocking=True)
+
+            # asvspoof_collate_fn intentionally returns a dict so the batch can
+            # carry waveform tensors plus metadata such as IDs and paths.
+            waveforms = batch["waveforms"]
+            labels = batch["labels"]
+            if not isinstance(waveforms, Tensor) or not isinstance(labels, Tensor):
+                raise TypeError("ASVspoof collate output must contain Tensor waveforms and labels.")
+
+            waveforms = self.input_preprocessor(waveforms).to(self.device, non_blocking=True)
+            labels = labels.to(self.device, non_blocking=True)
 
             with torch.set_grad_enabled(training):
                 with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.use_amp):
@@ -370,6 +377,8 @@ class AASISTTrainer:
             history_path = checkpoint_dir / "history.json"
             history_path.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
+        if self.best_epoch == 0:
+            raise RuntimeError("Training completed without producing a best checkpoint.")
         return TrainingResult(
             best_epoch=self.best_epoch,
             best_f1=self.best_f1,
@@ -380,5 +389,5 @@ class AASISTTrainer:
 
 
 def build_training_engine(config: AASISTTrainingConfig) -> AASISTTrainer:
-    """Factory used by scripts/tests to construct a validated trainer."""
+    """Factory for the Phase 05 training engine."""
     return AASISTTrainer(config)

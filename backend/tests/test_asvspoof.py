@@ -105,3 +105,8 @@ def test_comments_and_blank_lines_are_ignored(tmp_path: Path) -> None:
     parser = ASVspoofProtocolParser(tmp_path)
 
     assert len(parser.parse_file(path)) == 1
+
+
+def test_empty_dataset_root_is_rejected() -> None:
+    with pytest.raises(ASVspoofProtocolError, match="dataset root must not be empty"):
+        ASVspoofProtocolParser("   ")

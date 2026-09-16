@@ -105,3 +105,7 @@ class ASVspoofProtocolParser:
         for entry in entries:
             counts[entry.label] += 1
         return counts
+
+    def label_counts(self, split: str) -> dict[str, int]:
+        """Return REAL/SPOOF counts for a named dataset split."""
+        return self.count_labels(self.load_split(split))

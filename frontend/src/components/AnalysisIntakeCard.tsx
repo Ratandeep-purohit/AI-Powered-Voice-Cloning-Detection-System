@@ -1,21 +1,25 @@
-import { useState } from "react";
+import axios from "axios";
+import { useEffect, useRef, useState } from "react";
 import { createAnalysisSession, runAnalysisPipeline, uploadAnalysisAudio, type AnalysisPipelineResult } from "../api/analysis";
 import { getAccessToken } from "../api/auth";
 import "./AnalysisIntakeCard.css";
 
 type Stage = "idle" | "upload" | "processing" | "detecting" | "risk" | "prevention" | "alert" | "complete" | "error";
 
-const stageMeta: Record<Exclude<Stage, "idle" | "error" | "complete">, [string, string]> = {
+const stages: Exclude<Stage, "idle" | "error" | "complete">[] = ["upload", "processing", "detecting", "risk", "prevention", "alert"];
+const stageMeta: Record<(typeof stages)[number], [string, string]> = {
   upload: ["Audio intake", "Validating and securely registering the recording"],
   processing: ["Audio processing", "Standardizing audio for the detector"],
   detecting: ["AI detection", "Running the trained AASIST-family detector"],
   risk: ["Risk scoring", "Calculating the deterministic security risk"],
   prevention: ["Prevention policy", "Evaluating the response policy"],
-  alert: ["Alert engine", "Creating a security alert when required"],
+  alert: ["Alert engine", "Finalizing the security response"],
 };
 
 function percentForStage(stage: Stage) {
-  return { idle: 0, upload: 16, processing: 32, detecting: 52, risk: 68, prevention: 82, alert: 94, complete: 100, error: 0 }[stage];
+  if (stage === "complete") return 100;
+  const index = stages.indexOf(stage as (typeof stages)[number]);
+  return index < 0 ? 0 : Math.round(8 + (index / (stages.length - 1)) * 84);
 }
 
 function formatDuration(ms: number | null | undefined) {
@@ -27,11 +31,24 @@ function riskTone(level: string) {
   return `risk-${level.toLowerCase()}`;
 }
 
+function errorDetail(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const detail = error.response?.data?.detail;
+    if (typeof detail === "string") return detail;
+  }
+  return error instanceof Error ? error.message : "The analysis pipeline failed.";
+}
+
 export function AnalysisIntakeCard() {
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<AnalysisPipelineResult | null>(null);
   const [error, setError] = useState("");
+  const stageRef = useRef<Stage>("idle");
+
+  useEffect(() => {
+    stageRef.current = stage;
+  }, [stage]);
 
   const submit = async () => {
     const token = getAccessToken();
@@ -45,6 +62,8 @@ export function AnalysisIntakeCard() {
     setResult(null);
     setError("");
     setStage("upload");
+
+    let timer: number | undefined;
     try {
       const created = await createAnalysisSession(token);
       const ready = await uploadAnalysisAudio(token, created.id, file);
@@ -52,27 +71,29 @@ export function AnalysisIntakeCard() {
       if (!audio) throw new Error("Audio registration completed without an audio input.");
 
       setStage("processing");
+      let index = 1;
+      timer = window.setInterval(() => {
+        if (index < stages.length - 1 && stageRef.current !== "complete") {
+          setStage(stages[index]);
+          index += 1;
+        }
+      }, 1800);
+
       const pipeline = await runAnalysisPipeline(token, ready.id, audio.id);
-      setStage("detecting");
-      await new Promise((resolve) => window.setTimeout(resolve, 450));
-      setStage("risk");
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-      setStage("prevention");
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-      setStage("alert");
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      if (timer) window.clearInterval(timer);
       setResult(pipeline);
       setStage("complete");
       setFile(null);
     } catch (caught: unknown) {
-      const message = caught instanceof Error ? caught.message : "The analysis pipeline failed.";
-      setError(message);
+      if (timer) window.clearInterval(timer);
+      setError(errorDetail(caught));
       setStage("error");
     }
   };
 
-  const busy = !["idle", "complete", "error"].includes(stage);
+  const busy = stages.includes(stage as (typeof stages)[number]);
   const progress = percentForStage(stage);
+  const currentIndex = stages.indexOf(stage as (typeof stages)[number]);
 
   return (
     <section className={`analysis-intake-card ${busy ? "is-running" : ""}`} aria-labelledby="analysis-intake-title">
@@ -96,14 +117,12 @@ export function AnalysisIntakeCard() {
 
       {busy && (
         <div className="pipeline-run" aria-live="polite">
-          <div className="pipeline-run-top"><div><strong>{stageMeta[stage as keyof typeof stageMeta]?.[0]}</strong><span>{stageMeta[stage as keyof typeof stageMeta]?.[1]}</span></div><b>{progress}%</b></div>
+          <div className="pipeline-run-top"><div><strong>{stageMeta[stage as (typeof stages)[number]]?.[0]}</strong><span>{stageMeta[stage as (typeof stages)[number]]?.[1]}</span></div><b>{progress}%</b></div>
           <div className="pipeline-progress"><i style={{ width: `${progress}%` }} /></div>
           <div className="pipeline-steps">
-            {Object.entries(stageMeta).map(([key, meta], index) => {
-              const keys = Object.keys(stageMeta);
-              const currentIndex = keys.indexOf(stage);
+            {stages.map((key, index) => {
               const state = index < currentIndex ? "done" : index === currentIndex ? "current" : "waiting";
-              return <div className={`pipeline-step ${state}`} key={key}><span>{state === "done" ? "✓" : index + 1}</span><div><strong>{meta[0]}</strong><small>{state === "current" ? meta[1] : state === "done" ? "Completed" : "Waiting"}</small></div></div>;
+              return <div className={`pipeline-step ${state}`} key={key}><span>{state === "done" ? "✓" : index + 1}</span><div><strong>{stageMeta[key][0]}</strong><small>{state === "current" ? stageMeta[key][1] : state === "done" ? "Completed" : "Waiting"}</small></div></div>;
             })}
           </div>
         </div>

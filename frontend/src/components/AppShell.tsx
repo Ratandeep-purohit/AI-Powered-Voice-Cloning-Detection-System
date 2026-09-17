@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { RealtimeStatus } from "./RealtimeStatus";
 import "./AppShell.css";
 
 type IconName = "grid" | "wave" | "upload" | "bell" | "file" | "users" | "settings" | "search" | "menu" | "x" | "shield";
@@ -27,7 +28,7 @@ export function AppShell(){
   </aside>
   {open&&<button className="sidebar-backdrop" aria-label="Close navigation" onClick={()=>setOpen(false)}/>} 
   <section className="app-main">
-   <header className="app-topbar"><button className="mobile-menu" onClick={()=>setOpen(true)}><Icon name="menu"/></button><div className="crumbs"><span>Security Console</span><strong>/</strong><b>{title}</b></div><div className="top-actions"><div className="global-search"><Icon name="search"/><input id="global-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search security events..."/><kbd>⌘ K</kbd></div><button className="top-icon" aria-label="Notifications"><Icon name="bell"/><i/></button><div className="top-profile"><span>{initials}</span><div><b>{name}</b><small>Signed in</small></div></div></div></header>
+   <header className="app-topbar"><button className="mobile-menu" onClick={()=>setOpen(true)}><Icon name="menu"/></button><div className="crumbs"><span>Security Console</span><strong>/</strong><b>{title}</b></div><div className="top-actions"><div className="global-search"><Icon name="search"/><input id="global-search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search security events..."/><kbd>⌘ K</kbd></div><RealtimeStatus /><button className="top-icon" aria-label="Notifications"><Icon name="bell"/><i/></button><div className="top-profile"><span>{initials}</span><div><b>{name}</b><small>Signed in</small></div></div></div></header>
    <div className="page-stage"><Outlet/></div>
   </section>
  </div>

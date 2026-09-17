@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
+from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.schemas.prevention import PreventionPolicyResponse, PreventionRequestResponse
 from app.services.prevention_service import (
@@ -19,6 +20,20 @@ from app.services.response_policy_service import POLICY_VERSION, RISK_TO_RESPONS
 
 router = APIRouter(prefix="/prevention", tags=["prevention"])
 PREVENTION_ROLES = ("OPERATOR", "SECURITY_ANALYST", "ADMIN", "SUPER_ADMIN")
+
+
+def _audit_denied(db: Session, user: User, session_id: UUID, risk_score_id: UUID, request: Request) -> None:
+    db.add(AuditLog(
+        organization_id=user.organization_id,
+        user_id=user.id,
+        event_type="PREVENTION",
+        action="PREVENTION_ACCESS_DENIED",
+        entity_type="RISK_SCORE",
+        entity_id=risk_score_id,
+        event_metadata={"session_id": str(session_id)},
+        ip_address=request.client.host if request.client else None,
+    ))
+    db.commit()
 
 
 @router.get("/policy", response_model=PreventionPolicyResponse)
@@ -45,6 +60,7 @@ def create_prevention_decision(
     """Evaluate and persist a prevention decision for one completed risk result."""
     risk = get_owned_risk_score(db, current_user, session_id, risk_score_id)
     if risk is None:
+        _audit_denied(db, current_user, session_id, risk_score_id, request)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Risk assessment not found")
 
     try:
@@ -74,12 +90,14 @@ def create_prevention_decision(
 def retrieve_prevention_decision(
     session_id: UUID,
     risk_score_id: UUID,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PreventionRequestResponse:
     """Retrieve a previously generated decision within the authenticated tenant."""
     risk = get_owned_risk_score(db, current_user, session_id, risk_score_id)
     if risk is None:
+        _audit_denied(db, current_user, session_id, risk_score_id, request)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Risk assessment not found")
 
     decision = get_prevention_decision(db, current_user, session_id, risk_score_id)

@@ -43,13 +43,13 @@ class Settings(BaseSettings):
     asvspoof_dataset_root: str = Field(default="")
 
     # Phase 06 runtime detector configuration. The checkpoint is an external
-    # runtime artifact and remains ignored by Git. The threshold is a temporary
-    # configurable decision boundary until a DEV-only operating point is frozen.
+    # runtime artifact and remains ignored by Git. The threshold was frozen
+    # from the DEV split threshold analysis (balanced-accuracy operating point).
     aasist_checkpoint_path: str = Field(default="artifacts/checkpoints/aasist_balanced/best.pt")
     aasist_model_name: str = Field(default="AASIST-family spoof detector")
     aasist_model_version: str = Field(default="balanced-v1")
     aasist_target_duration_seconds: float = Field(default=4.0)
-    aasist_detection_threshold: float = Field(default=0.5)
+    aasist_detection_threshold: float = Field(default=0.5977)
 
     @property
     def is_development(self) -> bool:

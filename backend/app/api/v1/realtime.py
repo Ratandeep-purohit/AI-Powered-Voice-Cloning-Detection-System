@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
 from app.core.security import decode_access_token
-from app.database import SessionLocal, get_db
+from app.database import get_db, get_session_factory
 from app.models.user import User
 from app.schemas.analysis_pipeline import AnalysisPipelineResponse
 from app.services.analysis_pipeline import AnalysisPipelineError, run_analysis_pipeline
@@ -23,7 +23,6 @@ async def realtime_websocket(websocket: WebSocket, token: str | None = Query(def
     """Stream authenticated, organization-scoped security events."""
     if not token:
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Authentication required")
-
     try:
         payload = decode_access_token(token)
         user_id = payload["sub"]
@@ -31,10 +30,8 @@ async def realtime_websocket(websocket: WebSocket, token: str | None = Query(def
     except (KeyError, ValueError, jwt.PyJWTError):
         raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token") from None
 
-    with SessionLocal() as db:
-        user = db.scalar(
-            select(User).where(User.id == user_id, User.organization_id == organization_id, User.is_active.is_(True))
-        )
+    with get_session_factory()() as db:
+        user = db.scalar(select(User).where(User.id == user_id, User.organization_id == organization_id, User.is_active.is_(True)))
         if user is None:
             raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or inactive account")
         org_id = user.organization_id
@@ -42,7 +39,11 @@ async def realtime_websocket(websocket: WebSocket, token: str | None = Query(def
 
     await realtime_manager.connect(org_id, websocket)
     try:
-        await realtime_manager.publish(org_id, "connection.ready", {"user_id": str(user_id), "role": role})
+        await websocket.send_json({
+            "event_type": "connection.ready",
+            "organization_id": str(org_id),
+            "payload": {"user_id": str(user_id), "role": role},
+        })
         while True:
             message = await websocket.receive_json()
             if message.get("type") == "ping":
@@ -68,25 +69,13 @@ def analyze_audio_realtime(
 ) -> AnalysisPipelineResponse:
     """Run the full analysis pipeline while publishing stage events to WebSocket clients."""
     from uuid import UUID
-
     session_uuid = UUID(session_id)
     audio_uuid = UUID(audio_input_id)
 
     def publish(event_type: str, payload: dict) -> None:
-        realtime_manager.publish_sync(
-            current_user.organization_id,
-            event_type,  # type: ignore[arg-type]
-            payload,
-            session_id=session_uuid,
-        )
+        realtime_manager.publish_sync(current_user.organization_id, event_type, payload, session_id=session_uuid)  # type: ignore[arg-type]
 
     try:
-        return run_analysis_pipeline(
-            db,
-            current_user,
-            session_uuid,
-            audio_uuid,
-            event_callback=publish,
-        )
+        return run_analysis_pipeline(db, current_user, session_uuid, audio_uuid, event_callback=publish)
     except (ValueError, AnalysisPipelineError) as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from None

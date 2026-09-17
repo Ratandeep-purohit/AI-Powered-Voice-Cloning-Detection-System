@@ -138,3 +138,16 @@ export async function runAnalysisPipeline(
   );
   return response.data;
 }
+
+export async function runRealtimeAnalysisPipeline(
+  accessToken: string,
+  sessionId: string,
+  audioInputId: string,
+): Promise<AnalysisPipelineResult> {
+  const response = await axios.post<AnalysisPipelineResult>(
+    `${API_BASE}/calls/${sessionId}/audio/${audioInputId}/analyze-realtime`,
+    undefined,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  return response.data;
+}

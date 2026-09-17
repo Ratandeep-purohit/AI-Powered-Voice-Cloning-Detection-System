@@ -58,3 +58,6 @@ storage/audio/
 
 # Runtime-generated audio storage
 backend/storage/
+
+# Phase 05 ML checkpoints, evaluation reports, and runtime artifacts
+backend/artifacts/

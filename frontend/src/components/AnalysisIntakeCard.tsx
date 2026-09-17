@@ -1,7 +1,8 @@
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
-import { createAnalysisSession, runAnalysisPipeline, uploadAnalysisAudio, type AnalysisPipelineResult } from "../api/analysis";
+import { createAnalysisSession, runRealtimeAnalysisPipeline, uploadAnalysisAudio, type AnalysisPipelineResult } from "../api/analysis";
 import { getAccessToken } from "../api/auth";
+import type { RealtimeEvent } from "../api/realtime";
 import "./AnalysisIntakeCard.css";
 
 type Stage = "idle" | "upload" | "processing" | "detecting" | "risk" | "prevention" | "alert" | "complete" | "error";
@@ -39,16 +40,45 @@ function errorDetail(error: unknown) {
   return error instanceof Error ? error.message : "The analysis pipeline failed.";
 }
 
+function stageFromRealtimeEvent(eventType: string): Stage | null {
+  const map: Record<string, Stage> = {
+    "analysis.started": "processing",
+    "analysis.processing_completed": "detecting",
+    "analysis.detection_completed": "risk",
+    "analysis.risk_scored": "prevention",
+    "analysis.prevention_decided": "alert",
+    "alert.created": "alert",
+  };
+  return map[eventType] ?? null;
+}
+
 export function AnalysisIntakeCard() {
   const [file, setFile] = useState<File | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
   const [result, setResult] = useState<AnalysisPipelineResult | null>(null);
   const [error, setError] = useState("");
   const stageRef = useRef<Stage>("idle");
+  const sessionRef = useRef<string | null>(null);
 
   useEffect(() => {
     stageRef.current = stage;
   }, [stage]);
+
+  useEffect(() => {
+    const handleRealtime = (event: Event) => {
+      const detail = (event as CustomEvent<RealtimeEvent>).detail;
+      if (!detail?.session_id || detail.session_id !== sessionRef.current) return;
+      const nextStage = stageFromRealtimeEvent(detail.event_type);
+      if (nextStage && stageRef.current !== "complete" && stageRef.current !== "error") setStage(nextStage);
+      if (detail.event_type === "analysis.failed") {
+        const reason = detail.payload?.reason;
+        setError(typeof reason === "string" ? reason : "The analysis pipeline failed.");
+        setStage("error");
+      }
+    };
+    window.addEventListener("voiceguard:realtime", handleRealtime);
+    return () => window.removeEventListener("voiceguard:realtime", handleRealtime);
+  }, []);
 
   const submit = async () => {
     const token = getAccessToken();
@@ -62,30 +92,21 @@ export function AnalysisIntakeCard() {
     setResult(null);
     setError("");
     setStage("upload");
+    sessionRef.current = null;
 
-    let timer: number | undefined;
     try {
       const created = await createAnalysisSession(token);
+      sessionRef.current = created.id;
       const ready = await uploadAnalysisAudio(token, created.id, file);
       const audio = ready.audio_inputs[0];
       if (!audio) throw new Error("Audio registration completed without an audio input.");
 
       setStage("processing");
-      let index = 1;
-      timer = window.setInterval(() => {
-        if (index < stages.length - 1 && stageRef.current !== "complete") {
-          setStage(stages[index]);
-          index += 1;
-        }
-      }, 1800);
-
-      const pipeline = await runAnalysisPipeline(token, ready.id, audio.id);
-      if (timer) window.clearInterval(timer);
+      const pipeline = await runRealtimeAnalysisPipeline(token, ready.id, audio.id);
       setResult(pipeline);
       setStage("complete");
       setFile(null);
     } catch (caught: unknown) {
-      if (timer) window.clearInterval(timer);
       setError(errorDetail(caught));
       setStage("error");
     }
@@ -128,7 +149,7 @@ export function AnalysisIntakeCard() {
         </div>
       )}
 
-      {stage === "error" && <div className="analysis-error" role="alert"><strong>Analysis failed</strong><span>{error}</span><button type="button" onClick={() => { setStage("idle"); setError(""); }}>Try again</button></div>}
+      {stage === "error" && <div className="analysis-error" role="alert"><strong>Analysis failed</strong><span>{error}</span><button type="button" onClick={() => { setStage("idle"); setError(""); sessionRef.current = null; }}>Try again</button></div>}
 
       {stage === "complete" && result && (
         <div className="analysis-result" role="status">
@@ -140,7 +161,7 @@ export function AnalysisIntakeCard() {
             <article><span>Model</span><strong>{result.detection.model_version ?? "AASIST"}</strong><small>Inference {formatDuration(result.detection.processing_time_ms)} · {result.processing.processed_sample_rate ?? 16000}Hz mono</small></article>
           </div>
           {result.alert && <div className="result-alert"><span>●</span><div><strong>{result.alert.title}</strong><small>{result.alert.description ?? "Security alert generated from the detected risk."}</small></div><b>{result.alert.severity}</b></div>}
-          <button type="button" className="new-analysis-button" onClick={() => { setStage("idle"); setResult(null); }}>Analyze another recording</button>
+          <button type="button" className="new-analysis-button" onClick={() => { setStage("idle"); setResult(null); sessionRef.current = null; }}>Analyze another recording</button>
         </div>
       )}
     </section>

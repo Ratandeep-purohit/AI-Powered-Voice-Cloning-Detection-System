@@ -12,6 +12,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from app.api.v1.alert import router as alert_router
 from app.api.v1.analysis import router as analysis_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
@@ -49,13 +50,7 @@ def create_app() -> FastAPI:
     )
     _app.state.limiter = limiter
     _app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-    _app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://localhost:3000"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    _app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://localhost:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
     _app.add_exception_handler(Exception, unhandled_exception_handler)
     _app.include_router(health_router, prefix="/api/v1")
     _app.include_router(auth_router, prefix="/api/v1")
@@ -64,6 +59,7 @@ def create_app() -> FastAPI:
     _app.include_router(analysis_router, prefix="/api/v1")
     _app.include_router(risk_router, prefix="/api/v1")
     _app.include_router(prevention_router, prefix="/api/v1")
+    _app.include_router(alert_router, prefix="/api/v1")
     return _app
 
 

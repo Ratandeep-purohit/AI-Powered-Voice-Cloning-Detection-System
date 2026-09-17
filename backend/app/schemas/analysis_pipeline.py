@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.alert import AlertResponse
 from app.schemas.prevention import PreventionDecisionResponse
 from app.schemas.risk import RiskScoreResponse
 from app.schemas.voice_analysis import VoiceAnalysisResponse
@@ -34,5 +35,5 @@ class AnalysisPipelineResponse(BaseModel):
     detector_threshold: float
     risk: RiskScoreResponse
     prevention: PreventionDecisionResponse
-    alert: object | None
+    alert: AlertResponse | None
     completed_at: datetime

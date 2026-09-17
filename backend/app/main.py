@@ -15,6 +15,7 @@ from slowapi.util import get_remote_address
 from app.api.v1.analysis import router as analysis_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
+from app.api.v1.policy import router as policy_router
 from app.api.v1.register import router as register_router
 from app.api.v1.users import router as users_router
 from app.config import get_settings
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     _app.include_router(register_router, prefix="/api/v1")
     _app.include_router(users_router, prefix="/api/v1")
     _app.include_router(analysis_router, prefix="/api/v1")
+    _app.include_router(policy_router, prefix="/api/v1")
     return _app
 
 

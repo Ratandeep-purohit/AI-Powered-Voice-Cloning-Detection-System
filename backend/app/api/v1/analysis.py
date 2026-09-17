@@ -1,4 +1,4 @@
-"""Authenticated analysis-session and audio-processing endpoints."""
+"""Authenticated analysis-session, audio-processing and detector endpoints."""
 
 from uuid import UUID
 
@@ -11,10 +11,14 @@ from app.core.dependencies import get_current_user, require_roles
 from app.database import get_db
 from app.models.audit_log import AuditLog
 from app.models.audio_input import AudioInput
+from app.models.audio_processing import AudioProcessingJob
 from app.models.call import Call
 from app.models.user import User
+from app.models.voice_analysis import VoiceAnalysis
 from app.schemas.analysis import AnalysisSessionCreate, AnalysisSessionResponse
 from app.schemas.audio_processing import AudioProcessingResponse
+from app.schemas.voice_analysis import DetectionResponse, VoiceAnalysisResponse
+from app.services.aasist_inference import AASISTInferenceError, build_aasist_inference_service
 from app.services.analysis import create_session, get_owned_session, store_audio_upload
 from app.services.audio_processing import AudioProcessingError, process_audio_input
 
@@ -123,3 +127,75 @@ async def process_analysis_audio(
         "processed_storage_key": job.processed_storage_key,
     })
     return job
+
+
+@router.post("/{session_id}/audio/{audio_input_id}/detect", response_model=DetectionResponse)
+async def detect_analysis_audio(
+    session_id: UUID,
+    audio_input_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
+) -> DetectionResponse:
+    """Run the trained AASIST-family detector on processed application audio."""
+    audio = db.scalar(
+        select(AudioInput)
+        .join(Call, Call.id == AudioInput.call_id)
+        .where(
+            AudioInput.id == audio_input_id,
+            AudioInput.call_id == session_id,
+            Call.organization_id == current_user.organization_id,
+        )
+    )
+    if audio is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Audio input not found")
+
+    job = db.scalar(
+        select(AudioProcessingJob)
+        .where(AudioProcessingJob.audio_input_id == audio.id, AudioProcessingJob.status == "COMPLETED")
+        .order_by(AudioProcessingJob.completed_at.desc())
+    )
+    if job is None or not job.processed_storage_key:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Audio must be successfully processed before detection")
+
+    settings = get_settings()
+    try:
+        result = build_aasist_inference_service(settings).predict_processed_audio(job.processed_storage_key)
+    except AASISTInferenceError as exc:
+        _audit(db, current_user, "DETECTION_FAILED", session_id, request, {
+            "audio_input_id": str(audio.id),
+            "reason": str(exc),
+        })
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from None
+
+    analysis = VoiceAnalysis(
+        call_id=session_id,
+        model_name=result.model_name,
+        model_version=result.model_version,
+        detection_status="COMPLETED",
+        synthetic_score=result.spoof_probability,
+        synthetic_probability=result.spoof_probability,
+        authentic_probability=result.authentic_probability,
+        confidence=result.confidence,
+        processing_time_ms=result.processing_time_ms,
+    )
+    db.add(analysis)
+    db.commit()
+    db.refresh(analysis)
+
+    _audit(db, current_user, "DETECTION_COMPLETED", session_id, request, {
+        "audio_input_id": str(audio.id),
+        "analysis_id": str(analysis.id),
+        "model": result.model_name,
+        "model_version": result.model_version,
+        "decision": result.predicted_label,
+        "threshold": result.threshold,
+        "spoof_probability": result.spoof_probability,
+        "processing_time_ms": result.processing_time_ms,
+    })
+
+    return DetectionResponse(
+        analysis=VoiceAnalysisResponse.model_validate(analysis),
+        decision=result.predicted_label,
+        threshold=result.threshold,
+    )

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.audio_input import AudioInput
     from app.models.audio_segment import AudioSegment
     from app.models.organization import Organization
+    from app.models.prevention_decision import PreventionDecision
     from app.models.risk_score import RiskScore
     from app.models.user import User
     from app.models.voice_analysis import VoiceAnalysis
@@ -47,6 +48,7 @@ class Call(Base, TimestampMixin):
     audio_segments: Mapped[list["AudioSegment"]] = relationship("AudioSegment", back_populates="call", lazy="select")
     voice_analyses: Mapped[list["VoiceAnalysis"]] = relationship("VoiceAnalysis", back_populates="call", lazy="select")
     risk_scores: Mapped[list["RiskScore"]] = relationship("RiskScore", back_populates="call", lazy="select")
+    prevention_decisions: Mapped[list["PreventionDecision"]] = relationship("PreventionDecision", back_populates="call", lazy="select")
     alerts: Mapped[list["Alert"]] = relationship("Alert", back_populates="call", lazy="select")
 
     __table_args__ = (

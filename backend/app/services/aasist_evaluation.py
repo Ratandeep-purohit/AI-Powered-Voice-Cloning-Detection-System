@@ -48,6 +48,7 @@ class EvaluationResult:
     device: str
     sample_rate: int
     target_duration_seconds: float
+    threshold: float
     metrics: EvaluationMetrics
 
     def to_dict(self) -> dict[str, Any]:
@@ -57,6 +58,7 @@ class EvaluationResult:
             "device": self.device,
             "sample_rate": self.sample_rate,
             "target_duration_seconds": self.target_duration_seconds,
+            "threshold": self.threshold,
             "metrics": self.metrics.to_dict(),
         }
 
@@ -67,7 +69,7 @@ def classification_metrics(
     predictions: Tensor,
     loss: float = 0.0,
 ) -> EvaluationMetrics:
-    """Compute confusion-matrix, threshold and ranking metrics efficiently."""
+    """Compute confusion-matrix and ranking metrics."""
 
     labels = labels.to(torch.int64).flatten().cpu()
     scores = spoof_probabilities.to(torch.float64).flatten().cpu()
@@ -92,7 +94,6 @@ def classification_metrics(
     roc_auc: float | None = None
     eer: float | None = None
     if positives.numel() and negatives.numel():
-        # Mann-Whitney formulation of ROC-AUC with tie handling; O(N log N).
         all_scores = torch.cat((positives, negatives))
         order = torch.argsort(all_scores, stable=True)
         sorted_scores = all_scores[order]
@@ -110,8 +111,6 @@ def classification_metrics(
         n_neg = negatives.numel()
         roc_auc = (rank_sum - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg)
 
-        # Sweep descending thresholds. EER is the operating point minimizing
-        # the absolute FAR/FRR gap; the returned value is their midpoint.
         sweep_order = torch.argsort(scores, descending=True, stable=True)
         sorted_labels_desc = labels[sweep_order]
         positives_total = n_pos
@@ -156,7 +155,7 @@ def classification_metrics(
 
 
 class AASISTEvaluator:
-    """Run deterministic full-split inference using a trained checkpoint."""
+    """Run deterministic split inference using a trained checkpoint."""
 
     def __init__(
         self,
@@ -168,6 +167,7 @@ class AASISTEvaluator:
         target_duration_seconds: float = 4.0,
         device: str = "auto",
         mixed_precision: bool = True,
+        threshold: float = 0.5,
     ) -> None:
         self.dataset_root = Path(dataset_root).expanduser().resolve()
         self.checkpoint = Path(checkpoint).expanduser().resolve()
@@ -179,6 +179,8 @@ class AASISTEvaluator:
             raise ValueError("Invalid evaluation configuration.")
         if device not in {"auto", "cpu", "cuda"}:
             raise ValueError("device must be one of: auto, cpu, cuda.")
+        if not 0.0 < threshold < 1.0:
+            raise ValueError("threshold must be between 0 and 1.")
 
         if device == "cuda" and not torch.cuda.is_available():
             raise RuntimeError("CUDA was requested but is not available.")
@@ -188,6 +190,7 @@ class AASISTEvaluator:
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.mixed_precision = mixed_precision
+        self.threshold = float(threshold)
         self.preprocessor = AudioModelInputPreprocessor(
             ModelInputConfig(sample_rate=16_000, target_duration_seconds=target_duration_seconds)
         )
@@ -239,12 +242,13 @@ class AASISTEvaluator:
                     loss = self.loss_fn(logits, labels)
 
                 probabilities = AASISTModel.probabilities(logits)
-                predictions = AASISTModel.predict_label(logits)
+                spoof_scores = probabilities[:, AASISTModel.SPOOF_CLASS]
+                predictions = (spoof_scores >= self.threshold).to(torch.int64)
                 size = int(labels.shape[0])
                 total_loss += float(loss.detach().cpu()) * size
                 total_samples += size
                 all_labels.append(labels.detach().cpu())
-                all_scores.append(probabilities[:, AASISTModel.SPOOF_CLASS].detach().cpu())
+                all_scores.append(spoof_scores.detach().cpu())
                 all_predictions.append(predictions.detach().cpu())
                 progress.set_postfix(loss=f"{total_loss / total_samples:.4f}", refresh=False)
 
@@ -260,6 +264,7 @@ class AASISTEvaluator:
             device=str(self.device),
             sample_rate=16_000,
             target_duration_seconds=self.preprocessor.config.target_duration_seconds,
+            threshold=self.threshold,
             metrics=metrics,
         )
 

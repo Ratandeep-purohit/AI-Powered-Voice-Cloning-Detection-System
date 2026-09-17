@@ -47,7 +47,7 @@ class PreventionDecision(Base):
     )
 
     organization: Mapped["Organization"] = relationship("Organization")
-    call: Mapped["Call"] = relationship("Call")
+    call: Mapped["Call"] = relationship("Call", back_populates="prevention_decisions")
     risk_score_record: Mapped["RiskScore"] = relationship("RiskScore")
 
     __table_args__ = (

@@ -110,7 +110,11 @@ class AASISTInferenceService:
                 enabled=self.mixed_precision,
             ):
                 logits = self.model(prepared)
-            probabilities = AASISTModel.probabilities(logits)[0]
+
+            # Keep probability conversion in FP32 even when model inference uses
+            # CUDA AMP. This avoids FP16 rounding causing the two class
+            # probabilities to fail the probability-sum invariant in validation.
+            probabilities = AASISTModel.probabilities(logits.float())[0]
 
         spoof_probability = float(probabilities[AASISTModel.SPOOF_CLASS].detach().cpu())
         authentic_probability = float(probabilities[AASISTModel.REAL_CLASS].detach().cpu())

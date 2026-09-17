@@ -22,11 +22,12 @@ def parse_args() -> argparse.Namespace:
         description="Evaluate the trained AASIST-family spoof detector on ASVspoof2019 LA."
     )
     parser.add_argument("--dataset-root", default=settings.asvspoof_dataset_root, required=not bool(settings.asvspoof_dataset_root))
-    parser.add_argument("--checkpoint", default="artifacts/checkpoints/aasist/best.pt")
+    parser.add_argument("--checkpoint", default="artifacts/checkpoints/aasist_balanced/best.pt")
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--num-workers", type=int, default=0)
     parser.add_argument("--target-duration-seconds", type=float, default=4.0)
     parser.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
+    parser.add_argument("--threshold", type=float, default=settings.aasist_detection_threshold, help="Fixed spoof decision threshold; default is the DEV-derived operating point.")
     parser.add_argument("--no-amp", action="store_true", help="Disable CUDA mixed precision during evaluation.")
     parser.add_argument("--output", default="artifacts/evaluation/aasist/eval.json")
     return parser.parse_args()
@@ -40,6 +41,7 @@ def main() -> None:
 
     print(f"Dataset root: {dataset_root}")
     print(f"Checkpoint: {checkpoint}")
+    print(f"Decision threshold: {args.threshold:.4f}")
     print("Validating ASVspoof dataset integrity...")
     report = ASVspoofIntegrityValidator(dataset_root).validate()
     for split in report.splits:
@@ -58,6 +60,7 @@ def main() -> None:
         target_duration_seconds=args.target_duration_seconds,
         device=args.device,
         mixed_precision=not args.no_amp,
+        threshold=args.threshold,
     )
     print(f"Device: {evaluator.device}")
     print(f"AMP: {evaluator.device.type == 'cuda' and not args.no_amp}")

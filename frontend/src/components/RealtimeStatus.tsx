@@ -15,9 +15,9 @@ export function RealtimeStatus({ onEvent }: Props) {
   }, [onEvent]);
 
   return (
-    <span className={`realtime-status ${connected ? "connected" : "offline"}`} title={connected ? "Live security events connected" : "Live security events reconnecting"}>
+    <span className={`realtime-status ${connected ? "connected" : "offline"}`} title={connected ? "Live security events connected" : "Live security events offline"}>
       <i />
-      {connected ? "Live" : "Reconnecting"}
+      {connected ? "Live" : "Offline"}
     </span>
   );
 }

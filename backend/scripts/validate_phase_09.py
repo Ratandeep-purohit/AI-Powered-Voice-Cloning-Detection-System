@@ -1,11 +1,9 @@
 """Consolidated Phase 09 validation gate."""
-
 from __future__ import annotations
 
 import subprocess
 import sys
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -19,9 +17,12 @@ def run(label: str, args: list[str]) -> None:
 
 
 def main() -> None:
-    run("Phase 09 alert + Phase 07/08 regression tests", [
+    run("Phase 09 alert policy/API + Phase 07/08 regression tests", [
         sys.executable, "-m", "pytest",
+        "tests/test_alert_policy.py",
+        "tests/test_alert_policy_extra.py",
         "tests/test_alert_service.py",
+        "tests/test_alert_api.py",
         "tests/test_prevention_policy.py",
         "tests/test_prevention_service.py",
         "tests/test_risk_scoring.py",

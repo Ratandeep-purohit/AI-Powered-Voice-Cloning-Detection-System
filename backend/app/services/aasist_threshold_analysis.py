@@ -177,7 +177,7 @@ def operating_point(
         elif objective == "balanced_accuracy":
             key = (current.balanced_accuracy, current.f1)
         else:
-            key = (-abs(current.far - current.frr), -current.f1)
+            key = (-abs(current.far - current.frr), current.f1)
         if best is None or key > best_key:  # type: ignore[operator]
             best = current
             best_key = key
@@ -321,7 +321,7 @@ def collect_and_analyze(
                 enabled=evaluator.device.type == "cuda" and evaluator.mixed_precision,
             ):
                 logits = evaluator.model(waveforms)
-            probabilities = evaluator.model.probabilities(logits)
+            probabilities = AASISTModel.probabilities(logits)
             all_labels.append(labels.detach().cpu())
             all_scores.append(probabilities[:, evaluator.model.SPOOF_CLASS].detach().cpu())
 

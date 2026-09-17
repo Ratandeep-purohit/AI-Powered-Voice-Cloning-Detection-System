@@ -321,7 +321,7 @@ def collect_and_analyze(
                 enabled=evaluator.device.type == "cuda" and evaluator.mixed_precision,
             ):
                 logits = evaluator.model(waveforms)
-            probabilities = AASISTModel.probabilities(logits)
+            probabilities = evaluator.model.probabilities(logits)
             all_labels.append(labels.detach().cpu())
             all_scores.append(probabilities[:, evaluator.model.SPOOF_CLASS].detach().cpu())
 

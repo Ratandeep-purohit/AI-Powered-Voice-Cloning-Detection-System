@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-import uuid
 import wave
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,9 +61,10 @@ def _safe_processed_path(settings: Settings, storage_key: str) -> Path:
 
 
 class AASISTInferenceService:
-    """Load one detector checkpoint and perform cached synchronous inference."""
+    """Load one detector checkpoint and perform synchronous inference."""
 
     def __init__(self, settings: Settings, *, device: str = "auto", mixed_precision: bool = True) -> None:
+        self.settings = settings
         checkpoint = Path(settings.aasist_checkpoint_path).expanduser().resolve()
         if not checkpoint.is_file():
             raise AASISTInferenceError(f"AASIST checkpoint does not exist: {checkpoint}")
@@ -98,7 +98,7 @@ class AASISTInferenceService:
         self.model.eval()
 
     def predict_processed_audio(self, processed_storage_key: str) -> AASISTInferenceResult:
-        path = _safe_processed_path(self._settings, processed_storage_key)
+        path = _safe_processed_path(self.settings, processed_storage_key)
         waveform = _load_processed_waveform(path)
         prepared = self.preprocessor.prepare(waveform)[0].unsqueeze(0).to(self.device)
 
@@ -129,11 +129,7 @@ class AASISTInferenceService:
             threshold=self.threshold,
         )
 
-    def bind_settings(self, settings: Settings) -> "AASISTInferenceService":
-        self._settings = settings
-        return self
-
 
 def build_aasist_inference_service(settings: Settings, *, device: str = "auto", mixed_precision: bool = True) -> AASISTInferenceService:
-    """Build a detector service with the application settings bound."""
-    return AASISTInferenceService(settings, device=device, mixed_precision=mixed_precision).bind_settings(settings)
+    """Build a detector service from application settings."""
+    return AASISTInferenceService(settings, device=device, mixed_precision=mixed_precision)

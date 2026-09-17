@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { AnalysisIntakeCard } from "../components/AnalysisIntakeCard";
 import { getAccessToken } from "../api/auth";
@@ -35,7 +35,7 @@ function useOverview() {
   return { data, loading, error, reload: load };
 }
 
-function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: string; copy: string; action?: React.ReactNode }) {
+function PageHeader({ eyebrow, title, copy, action }: { eyebrow: string; title: string; copy: string; action?: ReactNode }) {
   return <header className="sw-header"><div><span className="sw-eyebrow">{eyebrow}</span><h1>{title}</h1><p>{copy}</p></div>{action}</header>;
 }
 function Stat({ label, value, detail, tone = "blue", icon }: { label: string; value: string | number; detail: string; tone?: string; icon: keyof typeof iconPaths }) {
@@ -43,7 +43,7 @@ function Stat({ label, value, detail, tone = "blue", icon }: { label: string; va
 }
 function RiskBadge({ level }: { level: string | null | undefined }) { const value = (level ?? "SAFE").toUpperCase(); return <span className={`risk-badge ${value.toLowerCase()}`}>{value}</span>; }
 function SeverityDot({ severity }: { severity: string }) { return <span className={`severity-dot ${severity.toLowerCase()}`} />; }
-function Empty({ title, copy, action }: { title: string; copy: string; action?: React.ReactNode }) { return <div className="sw-empty"><span><Icon name="shield" /></span><h3>{title}</h3><p>{copy}</p>{action}</div>; }
+function Empty({ title, copy, action }: { title: string; copy: string; action?: ReactNode }) { return <div className="sw-empty"><span><Icon name="shield" /></span><h3>{title}</h3><p>{copy}</p>{action}</div>; }
 function Loading({ text = "Loading security intelligence…" }: { text?: string }) { return <div className="sw-loading"><i /><span>{text}</span></div>; }
 
 export function SecurityOverviewPage() {
@@ -83,7 +83,7 @@ export function AnalysisDetailPage() {
 
 async function getAlerts() { const token = getAccessToken(); if (!token) throw new Error("Session expired"); const r = await axios.get(`${API_BASE}/alerts`, { headers: { Authorization: `Bearer ${token}` } }); return r.data.items as AlertRecord[]; }
 async function getAlert(id: string) { const token = getAccessToken(); if (!token) throw new Error("Session expired"); const r = await axios.get(`${API_BASE}/alerts/${id}`, { headers: { Authorization: `Bearer ${token}` } }); return r.data as AlertRecord; }
-async function getAlertActions(id: string) { const token = getAccessToken(); if (!token) throw new Error("Session expired"); const r = await axios.get(`${API_BASE}/alerts/${id}/actions`, { headers: { Authorization: `Bearer ${token}` } }); return r.data.items as AlertAction[]; }
+async function getAlertActions(id: string) { const token = getAccessToken(); if (!token) throw new Error("Session expired"); const r = await axios.get(`${API_BASE}/alerts/${id}/actions`, { headers: { Authorization: `Bearer ${token}` }); return r.data.items as AlertAction[]; }
 async function transitionAlert(id: string, status: string, notes?: string) { const token = getAccessToken(); if (!token) throw new Error("Session expired"); const r = await axios.post(`${API_BASE}/alerts/${id}/transition`, { status, notes }, { headers: { Authorization: `Bearer ${token}` } }); return r.data as AlertRecord; }
 type AlertRecord = { id: string; organization_id: string; call_id: string | null; risk_score_id: string | null; alert_type: string; severity: string; status: string; title: string; description: string | null; resolved_at: string | null; resolved_by_user_id: string | null; created_at: string };
 type AlertAction = { id: string; alert_id: string; performed_by_user_id: string | null; action_type: string; previous_status: string | null; new_status: string | null; notes: string | null; created_at: string };
@@ -93,7 +93,7 @@ export function AlertsPage() {
   const load = async () => { setLoading(true); try { setAlerts(await getAlerts()); } catch (e) { setError(axios.isAxiosError(e) ? String(e.response?.data?.detail ?? "Unable to load alerts") : String(e)); } finally { setLoading(false); } };
   useEffect(() => { void load(); }, []);
   const filtered = alerts.filter(a => filter === "ALL" || a.severity === filter || a.status === filter);
-  return <main className="sw-page"><PageHeader eyebrow="Response center" title="Security alerts" copy="Investigate, acknowledge and resolve detected voice-security incidents." action={<button className="sw-ghost" onClick={() => void load()}><Icon name="clock" /> Refresh</button>} /><div className="alert-overview"><Stat label="Open" value={alerts.filter(x => x.status === "OPEN").length} detail="Needs triage" icon="alert" tone="rose" /><Stat label="Investigating" value={alerts.filter(x => x.status === "INVESTIGATING").length} detail="Under review" icon="search" tone="amber" /><Stat label="Critical" value={alerts.filter(x => x.severity === "CRITICAL").length} detail="Immediate attention" icon="shield" tone="violet" /></div><div className="filter-pills">{["ALL", "CRITICAL", "HIGH", "MEDIUM", "OPEN", "INVESTIGATING"].map(x => <button key={x} className={filter === x ? "selected" : ""} onClick={() => setFilter(x)}>{x}</button>)}</div>{loading ? <Loading /> : error ? <div className="sw-error"><h3>Alert service unavailable</h3><p>{error}</p><button onClick={() => void load()}>Retry</button></div> : filtered.length ? <div className="alert-grid">{filtered.map(a => <Link to={`/dashboard/alerts/${a.id}`} className={`alert-card ${a.severity.toLowerCase()}`} key={a.id}><div className="alert-card-top"><SeverityDot severity={a.severity} /><RiskBadge level={a.severity} /><span>{a.status.replaceAll("_", " ")}</span></div><h3>{a.title}</h3><p>{a.description || "Security alert generated from a protected analysis."}</p><div><strong>{a.risk_score?.toFixed(1) ?? "—"}</strong><small>risk score</small><time>{new Date(a.created_at).toLocaleString()}</time></div></Link>)}</div> : <Empty title="Response queue clear" copy="No alerts match the selected filters." />}</main>;
+  return <main className="sw-page"><PageHeader eyebrow="Response center" title="Security alerts" copy="Investigate, acknowledge and resolve detected voice-security incidents." action={<button className="sw-ghost" onClick={() => void load()}><Icon name="clock" /> Refresh</button>} /><div className="alert-overview"><Stat label="Open" value={alerts.filter(x => x.status === "OPEN").length} detail="Needs triage" icon="alert" tone="rose" /><Stat label="Investigating" value={alerts.filter(x => x.status === "INVESTIGATING").length} detail="Under review" icon="search" tone="amber" /><Stat label="Critical" value={alerts.filter(x => x.severity === "CRITICAL").length} detail="Immediate attention" icon="shield" tone="violet" /></div><div className="filter-pills">{["ALL", "CRITICAL", "HIGH", "MEDIUM", "OPEN", "INVESTIGATING"].map(x => <button key={x} className={filter === x ? "selected" : ""} onClick={() => setFilter(x)}>{x}</button>)}</div>{loading ? <Loading /> : error ? <div className="sw-error"><h3>Alert service unavailable</h3><p>{error}</p><button onClick={() => void load()}>Retry</button></div> : filtered.length ? <div className="alert-grid">{filtered.map(a => <Link to={`/dashboard/alerts/${a.id}`} className={`alert-card ${a.severity.toLowerCase()}`} key={a.id}><div className="alert-card-top"><SeverityDot severity={a.severity} /><RiskBadge level={a.severity} /><span>{a.status.replaceAll("_", " ")}</span></div><h3>{a.title}</h3><p>{a.description || "Security alert generated from a protected analysis."}</p><div><strong>Risk flagged</strong><small>Linked risk score</small><time>{new Date(a.created_at).toLocaleString()}</time></div></Link>)}</div> : <Empty title="Response queue clear" copy="No alerts match the selected filters." />}</main>;
 }
 
 export function AlertDetailPage() {

@@ -10,7 +10,10 @@ export function RealtimeStatus({ onEvent }: Props) {
 
   useEffect(() => {
     if (!getAccessToken()) return undefined;
-    const cleanup = createRealtimeSocket((event) => onEvent?.(event), setConnected);
+    const cleanup = createRealtimeSocket((event) => {
+      onEvent?.(event);
+      window.dispatchEvent(new CustomEvent("voiceguard:realtime", { detail: event }));
+    }, setConnected);
     return cleanup;
   }, [onEvent]);
 

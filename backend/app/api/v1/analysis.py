@@ -16,10 +16,12 @@ from app.models.call import Call
 from app.models.user import User
 from app.models.voice_analysis import VoiceAnalysis
 from app.schemas.analysis import AnalysisSessionCreate, AnalysisSessionResponse
+from app.schemas.analysis_pipeline import AnalysisPipelineResponse
 from app.schemas.audio_processing import AudioProcessingResponse
 from app.schemas.voice_analysis import DetectionResponse, VoiceAnalysisResponse
 from app.services.aasist_inference import AASISTInferenceError, build_aasist_inference_service
 from app.services.analysis import create_session, get_owned_session, store_audio_upload
+from app.services.analysis_pipeline import AnalysisPipelineError, run_analysis_pipeline
 from app.services.audio_processing import AudioProcessingError, process_audio_input
 
 router = APIRouter(prefix="/calls", tags=["analysis"])
@@ -199,3 +201,30 @@ async def detect_analysis_audio(
         decision=result.predicted_label,
         threshold=result.threshold,
     )
+
+
+@router.post("/{session_id}/audio/{audio_input_id}/analyze", response_model=AnalysisPipelineResponse)
+async def analyze_audio_end_to_end(
+    session_id: UUID,
+    audio_input_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(*CREATE_ANALYSIS_ROLES)),
+) -> AnalysisPipelineResponse:
+    """Run the complete production analysis journey in one authenticated request."""
+    try:
+        result = run_analysis_pipeline(db, current_user, session_id, audio_input_id)
+    except AnalysisPipelineError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from None
+
+    _audit(db, current_user, "ANALYSIS_PIPELINE_COMPLETED", session_id, request, {
+        "audio_input_id": str(audio_input_id),
+        "analysis_id": str(result.detection.id),
+        "risk_score_id": str(result.risk.id),
+        "prevention_decision_id": str(result.prevention.id),
+        "alert_id": str(result.alert.id) if result.alert else None,
+        "decision": result.decision,
+        "risk_level": result.risk.risk_level,
+        "response_action": result.prevention.response_action,
+    })
+    return result

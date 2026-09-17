@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     # intentionally external to the repository and must not be committed.
     asvspoof_dataset_root: str = Field(default="")
 
+    # Phase 06 runtime detector configuration. The checkpoint is an external
+    # runtime artifact and remains ignored by Git. The threshold is a temporary
+    # configurable decision boundary until a DEV-only operating point is frozen.
+    aasist_checkpoint_path: str = Field(default="artifacts/checkpoints/aasist_balanced/best.pt")
+    aasist_model_name: str = Field(default="AASIST-family spoof detector")
+    aasist_model_version: str = Field(default="balanced-v1")
+    aasist_target_duration_seconds: float = Field(default=4.0)
+    aasist_detection_threshold: float = Field(default=0.5)
+
     @property
     def is_development(self) -> bool:
         return self.app_env.lower() == "development"
@@ -87,6 +96,20 @@ class Settings(BaseSettings):
     def _audio_processing_values_positive(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("Audio processing configuration values must be positive.")
+        return v
+
+    @field_validator("aasist_target_duration_seconds")
+    @classmethod
+    def _aasist_target_duration_positive(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("AASIST_TARGET_DURATION_SECONDS must be positive.")
+        return v
+
+    @field_validator("aasist_detection_threshold")
+    @classmethod
+    def _aasist_threshold_in_range(cls, v: float) -> float:
+        if not 0.0 < v < 1.0:
+            raise ValueError("AASIST_DETECTION_THRESHOLD must be between 0 and 1.")
         return v
 
     def safe_database_url(self) -> str:

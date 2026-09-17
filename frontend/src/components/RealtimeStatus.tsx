@@ -1,0 +1,22 @@
+import { useEffect, useState } from "react";
+import { getAccessToken } from "../api/auth";
+import { createRealtimeSocket, type RealtimeEvent } from "../api/realtime";
+
+type Props = { onEvent?: (event: RealtimeEvent) => void };
+
+export function RealtimeStatus({ onEvent }: Props) {
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    if (!getAccessToken()) return undefined;
+    const cleanup = createRealtimeSocket((event) => onEvent?.(event), setConnected);
+    return cleanup;
+  }, [onEvent]);
+
+  return (
+    <span className={`realtime-status ${connected ? "connected" : "offline"}`} title={connected ? "Live security events connected" : "Live security events reconnecting"}>
+      <i />
+      {connected ? "Live" : "Reconnecting"}
+    </span>
+  );
+}

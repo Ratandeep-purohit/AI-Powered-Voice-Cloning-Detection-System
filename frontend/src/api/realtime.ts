@@ -19,11 +19,8 @@ export function createRealtimeSocket(
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const host = window.location.host;
-  const path = `${apiBase}/realtime/ws`;
-  const url = `${protocol}//${host}${path}?token=${encodeURIComponent(token)}`;
+  const url = `${protocol}//${host}${apiBase}/realtime/ws?token=${encodeURIComponent(token)}`;
   const socket = new WebSocket(url);
-  let retryTimer: number | undefined;
-  let closed = false;
 
   socket.onopen = () => onStateChange(true);
   socket.onmessage = (message) => {
@@ -33,15 +30,8 @@ export function createRealtimeSocket(
       // Ignore malformed events without breaking the live connection.
     }
   };
-  socket.onclose = () => {
-    onStateChange(false);
-    if (!closed) retryTimer = window.setTimeout(() => createRealtimeSocket(onEvent, onStateChange), 5000);
-  };
+  socket.onclose = () => onStateChange(false);
   socket.onerror = () => onStateChange(false);
 
-  return () => {
-    closed = true;
-    if (retryTimer) window.clearTimeout(retryTimer);
-    socket.close();
-  };
+  return () => socket.close();
 }

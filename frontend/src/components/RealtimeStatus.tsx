@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAccessToken } from "../api/auth";
 import { createRealtimeSocket, type RealtimeEvent } from "../api/realtime";
+import "./RealtimeStatus.css";
 
 type Props = { onEvent?: (event: RealtimeEvent) => void };
 

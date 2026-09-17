@@ -1,0 +1,1 @@
+Phase 09 implementation note: Alert Engine consumes persisted RiskScore and records alert lifecycle history via AlertAction and audit events. ML inference is intentionally out of scope.

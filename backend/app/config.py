@@ -31,25 +31,24 @@ class Settings(BaseSettings):
     audio_max_upload_size_mb: int = Field(default=25)
     audio_allowed_extensions: str = Field(default="wav,mp3,ogg,flac,m4a")
 
-    # Phase 04 preprocessing configuration. These values are configurable so
-    # the preprocessing target can be aligned with the eventual ML model.
+    # Phase 04 preprocessing configuration.
     audio_processing_sample_rate: int = Field(default=16000)
     audio_processing_channels: int = Field(default=1)
     audio_processing_max_duration_seconds: int = Field(default=1800)
     audio_processing_ffmpeg_binary: str = Field(default="ffmpeg")
 
-    # Phase 05 ASVspoof 2019 LA dataset configuration. The dataset itself is
-    # intentionally external to the repository and must not be committed.
+    # Phase 05 ASVspoof 2019 LA dataset configuration.
     asvspoof_dataset_root: str = Field(default="")
 
-    # Phase 06 runtime detector configuration. The checkpoint is an external
-    # runtime artifact and remains ignored by Git. The threshold was frozen
-    # from the DEV split threshold analysis (balanced-accuracy operating point).
+    # Phase 06 runtime detector configuration.
     aasist_checkpoint_path: str = Field(default="artifacts/checkpoints/aasist_balanced/best.pt")
     aasist_model_name: str = Field(default="AASIST-family spoof detector")
     aasist_model_version: str = Field(default="balanced-v1")
     aasist_target_duration_seconds: float = Field(default=4.0)
     aasist_detection_threshold: float = Field(default=0.5977)
+
+    # Phase 07 deterministic policy/prevention configuration.
+    prevention_policy_version: str = Field(default="prevention-v1")
 
     @property
     def is_development(self) -> bool:
@@ -111,6 +110,13 @@ class Settings(BaseSettings):
         if not 0.0 < v < 1.0:
             raise ValueError("AASIST_DETECTION_THRESHOLD must be between 0 and 1.")
         return v
+
+    @field_validator("prevention_policy_version")
+    @classmethod
+    def _prevention_policy_version_must_not_be_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("PREVENTION_POLICY_VERSION must not be empty.")
+        return v.strip()
 
     def safe_database_url(self) -> str:
         """Return the database URL with the password redacted for logging."""

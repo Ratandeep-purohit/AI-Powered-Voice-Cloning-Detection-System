@@ -1,0 +1,44 @@
+.realtime-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid rgba(120, 135, 165, .18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  color: #68758f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.realtime-status i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, .12);
+}
+
+.realtime-status.connected {
+  color: #16734a;
+  border-color: rgba(22, 115, 74, .16);
+  background: rgba(236, 253, 245, .78);
+}
+
+.realtime-status.connected i {
+  background: #18a66a;
+  box-shadow: 0 0 0 3px rgba(24, 166, 106, .13);
+  animation: realtime-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes realtime-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: .72; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realtime-status.connected i { animation: none; }
+}

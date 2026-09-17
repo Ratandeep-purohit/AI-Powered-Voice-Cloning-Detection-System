@@ -103,12 +103,36 @@ def build_dashboard_overview(db: Session, user: User) -> DashboardOverviewRespon
     ) or 0)
 
     metrics = {
-        "calls": DashboardMetric(calls_7d, _percent_change(calls_7d, calls_prev_7d), "analysis sessions · last 7 days"),
-        "analyses": DashboardMetric(completed_analyses, None, "completed detector runs"),
-        "spoof_detections": DashboardMetric(spoof_detections, None, "above active detector threshold"),
-        "average_risk": DashboardMetric(avg_risk, None, "mean deterministic risk score"),
-        "active_alerts": DashboardMetric(active_alert_count, None, "open, acknowledged or investigating"),
-        "blocked_actions": DashboardMetric(blocked_action_count, None, "policy BLOCK outcomes"),
+        "calls": DashboardMetric(
+            value=calls_7d,
+            delta_percent=_percent_change(calls_7d, calls_prev_7d),
+            caption="analysis sessions · last 7 days",
+        ),
+        "analyses": DashboardMetric(
+            value=completed_analyses,
+            delta_percent=None,
+            caption="completed detector runs",
+        ),
+        "spoof_detections": DashboardMetric(
+            value=spoof_detections,
+            delta_percent=None,
+            caption="above active detector threshold",
+        ),
+        "average_risk": DashboardMetric(
+            value=avg_risk,
+            delta_percent=None,
+            caption="mean deterministic risk score",
+        ),
+        "active_alerts": DashboardMetric(
+            value=active_alert_count,
+            delta_percent=None,
+            caption="open, acknowledged or investigating",
+        ),
+        "blocked_actions": DashboardMetric(
+            value=blocked_action_count,
+            delta_percent=None,
+            caption="policy BLOCK outcomes",
+        ),
     }
 
     # Seven calendar buckets, including empty days, make the chart stable.

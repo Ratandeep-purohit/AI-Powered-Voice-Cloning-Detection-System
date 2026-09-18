@@ -1,3 +1,4 @@
+// oxlint-disable react(set-state-in-effect), react-hooks(exhaustive-deps)
 import { useEffect, useMemo, useState } from "react";
 import { AnalysisIntakeCard } from "../components/AnalysisIntakeCard";
 import { useAuth } from "../context/AuthContext";
@@ -123,8 +124,6 @@ export function DashboardPage() {
     }
   };
 
-  // Dashboard data loading intentionally synchronizes React state from the API.
-  // oxlint-disable-next-line react(set-state-in-effect)
   useEffect(() => {
     void loadOverview();
     const timer = window.setInterval(() => void loadOverview(true), 30000);

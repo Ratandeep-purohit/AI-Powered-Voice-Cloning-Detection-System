@@ -14,15 +14,14 @@ const nav=[
 const admin=[["/dashboard/organization","Organization","users"],["/dashboard/settings","Settings","settings"]] as const;
 export function AppShell(){
  const {user,logout}=useAuth(); const location=useLocation(); const [open,setOpen]=useState(false); const [search,setSearch]=useState("");
- useEffect(()=>setOpen(false),[location.pathname]);
- useEffect(()=>{const fn=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();document.getElementById("global-search")?.focus()}};window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn)},[]);
+  useEffect(()=>{const fn=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();document.getElementById("global-search")?.focus()}};window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn)},[]);
  const name=user?.full_name??user?.email??"Analyst"; const initials=name.split(/\s+/).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()).join("")||"VG";
  const title=location.pathname==="/dashboard"?"Overview":location.pathname.split("/").at(-1)?.replace(/-/g," ")??"Overview";
  return <div className="app-shell">
   <aside className={`app-sidebar ${open?"mobile-open":""}`}>
    <div className="shell-brand"><span className="shell-brand-mark"><Icon name="shield"/></span><span><b>VoiceGuard</b><small>Voice security</small></span><button className="mobile-close" onClick={()=>setOpen(false)}><Icon name="x"/></button></div>
    <div className="shell-org"><span className="org-avatar">{initials}</span><span><b>{name}</b><small>{user?.role??"Analyst"}</small></span></div>
-   <nav className="shell-nav"><label>Workspace</label>{nav.map(([to,label,icon])=><NavLink key={to} to={to} end={to==="/dashboard"} className={({isActive})=>`shell-link ${isActive?"active":""}`}><Icon name={icon}/><span>{label}</span>{label==="Alerts"&&<em>Live</em>}</NavLink>)}<label>Administration</label>{admin.map(([to,label,icon])=><NavLink key={to} to={to} className={({isActive})=>`shell-link ${isActive?"active":""}`}><Icon name={icon}/><span>{label}</span></NavLink>)}</nav>
+   <nav className="shell-nav"><label>Workspace</label>{nav.map(([to,label,icon])=><NavLink key={to} to={to} end={to==="/dashboard"} className={({isActive})=>`shell-link ${isActive?"active":""}`} onClick={()=>setOpen(false)}><Icon name={icon}/><span>{label}</span>{label==="Alerts"&&<em>Live</em>}</NavLink>)}<label>Administration</label>{admin.map(([to,label,icon])=><NavLink key={to} to={to} className={({isActive})=>`shell-link ${isActive?"active":""}`} onClick={()=>setOpen(false)}><Icon name={icon}/><span>{label}</span></NavLink>)}</nav>
    <div className="engine-card"><span className="engine-dot"/><div><b>Detection engine</b><small>AASIST · balanced-v1</small></div></div>
    <button className="shell-signout" onClick={()=>void logout()}>Sign out</button>
   </aside>

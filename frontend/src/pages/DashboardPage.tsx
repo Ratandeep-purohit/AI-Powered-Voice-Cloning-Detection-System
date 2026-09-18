@@ -123,6 +123,8 @@ export function DashboardPage() {
     }
   };
 
+  // Dashboard data loading intentionally synchronizes React state from the API.
+  // oxlint-disable-next-line react(set-state-in-effect)
   useEffect(() => {
     void loadOverview();
     const timer = window.setInterval(() => void loadOverview(true), 30000);

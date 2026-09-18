@@ -4,15 +4,15 @@
 
 Built for the **Smart India Hackathon (SIH)** under the **Blockchain & Cybersecurity** theme.
 
-## The Problem
+## Project Status
 
-Modern voice-cloning systems can imitate trusted individuals from short audio samples. This makes voice-based social engineering especially dangerous in banking, enterprises, government workflows, call centers, and telecom environments—where an urgent instruction may trigger a high-risk action.
+**Status: Phase 12 complete; Phase 13 demo hardening in progress.**
 
-Caller ID, manual callbacks, and voice familiarity alone are no longer sufficient safeguards. This project introduces a dedicated analysis and advisory layer that helps identify suspicious synthetic voice characteristics before a high-risk action is completed.
+The implemented workflow covers authentication, secure audio ingestion and processing, AASIST-family inference, deterministic risk scoring, prevention policy, alerting, analyst dashboard workflows, WebSocket updates, and production request hardening.
 
-## The Solution
+Phase 13 focuses on repeatable presentation readiness, runtime dependency checks, and operator rehearsal.
 
-The platform analyzes audio interactions and connects the result to an end-to-end security workflow:
+## Core Workflow
 
 ```mermaid
 flowchart LR
@@ -30,148 +30,115 @@ The AI model provides a detection signal. The **Risk Engine** combines that sign
 
 ## Key Capabilities
 
-- Analyze uploaded, microphone, simulated, streamed, and future telephony/VoIP audio inputs.
-- Detect suspicious synthetic or spoofed voice characteristics with a pretrained anti-spoofing model.
-- Apply voice activity detection, audio validation, normalization, and model-specific feature preparation.
-- Generate normalized detection signals, model metadata, and analysis status.
-- Compute deterministic risk scores from `SAFE` to `CRITICAL` using ML signals and contextual factors.
-- Apply policy-controlled responses such as warning, secondary verification, escalation, or high-risk action hold.
-- Deliver live analysis, risk, and alert updates through WebSockets.
-- Provide analyst investigation views, alert history, and append-oriented audit logging.
-- Support advisory AI Security Copilot explanations and verification recommendations.
-- Preserve privacy through data minimization and avoidance of unnecessary raw-audio storage.
-
-## MVP Scope
-
-The Smart India Hackathon MVP prioritizes a dependable core workflow over unnecessary infrastructure complexity.
-
-| Area | MVP Focus |
-|---|---|
-| Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui |
-| Backend | Python, FastAPI, Pydantic, SQLAlchemy, Alembic |
-| AI/ML | PyTorch-based pretrained voice anti-spoofing inference |
-| Audio Processing | torchaudio, librosa, NumPy, SciPy, PyDub, WebRTC VAD |
-| Database | PostgreSQL for persistent metadata, results, alerts, and audit logs |
-| Real-Time Updates | FastAPI WebSockets |
-| Security | JWT, RBAC, Argon2, validation, audit logging |
-| Deployment | Docker and Docker Compose |
-
-Redis, WebRTC, gRPC, webhooks, SDKs, Kubernetes, SIEM integrations, and dedicated inference services are planned future enhancements—not MVP dependencies.
-
-## Architecture Principles
-
-- **MVP-first:** prove the core detection-to-response workflow before adding complexity.
-- **Modular monolith:** begin with a modular FastAPI backend; extract services later only when justified.
-- **Model-agnostic detection:** use a model adapter so the pretrained detector can be evaluated and replaced without redesigning the system.
-- **Deterministic security actions:** the Risk and Policy Engines remain independent of the LLM.
-- **Security by design:** enforce authentication, RBAC, organization-level isolation, validation, and auditability.
-- **Privacy-aware processing:** minimize sensitive-data retention and avoid raw-audio storage in PostgreSQL.
+- Secure authenticated analysis sessions and audio intake.
+- Audio validation, preprocessing, normalization, and model-compatible preparation.
+- AASIST-family synthetic voice detection.
+- Deterministic risk scoring from `SAFE` to `CRITICAL`.
+- Policy-controlled prevention outcomes.
+- Alert generation and analyst investigation lifecycle.
+- WebSocket-based live analysis and alert updates.
+- Audit logging across security-critical operations.
+- Production request correlation IDs and baseline HTTP security headers.
+- Liveness and dependency-aware readiness probes.
+- Advisory-only Security Copilot boundary.
 
 ## Technology Stack
 
 | Layer | Technologies |
 |---|---|
-| Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, Lucide React, React Router, Axios, Recharts |
-| Backend | Python, FastAPI, Uvicorn, Pydantic, SQLAlchemy, Alembic |
+| Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| Backend | Python, FastAPI, Pydantic, SQLAlchemy, Alembic |
 | AI / Audio | PyTorch, torchaudio, librosa, NumPy, SciPy, PyDub, WebRTC VAD |
-| AI Workflow | LangChain, LangGraph, LLM API, Pydantic Structured Output |
 | Database | PostgreSQL |
-| Real-Time | WebSockets |
-| Security | JWT, RBAC, Argon2, HTTPS/TLS, rate limiting, audit logging |
+| Real-Time | FastAPI WebSockets |
+| Security | JWT, RBAC, Argon2, validation, HTTPS/TLS, rate limiting, audit logging |
 | DevOps | Docker, Docker Compose, Git, GitHub |
 
-## Security Model
+## Security Principles
 
-Security controls protect both the application and the integrity of its decision workflow.
-
-- JWT-based authentication with Argon2 password hashing.
-- Server-side role-based access control for `SUPER_ADMIN`, `ADMIN`, `SECURITY_ANALYST`, `OPERATOR`, and `AUDITOR` roles.
-- Organization-level resource ownership checks.
-- Pydantic request validation and protected audio uploads.
-- Append-oriented audit records for authentication, analysis, risk, alert, and administrative events.
-- Explicit ML failure handling—model failures must not silently produce a `SAFE` outcome.
-- Advisory-only Copilot: it cannot directly modify risk scores, suppress alerts, resolve alerts, or execute critical actions.
-
-## AI Detection Design
-
-The MVP uses a **pretrained voice anti-spoofing or synthetic-speech detection model**. A specific model is intentionally not assumed until local inference testing verifies licensing, compatibility, latency, and practical detection consistency.
-
-```mermaid
-flowchart TD
-    input[Audio Input] --> vad[Voice Activity Detection]
-    vad --> prep[Model-Compatible Preparation]
-    prep --> model[Pretrained Anti-Spoofing Model]
-    model --> output[Normalized Detection Output]
-    output --> aggregation[Detection Aggregation]
-    aggregation --> risk[Risk Engine]
-```
-
-The model output is a detection signal, not a fraud decision. The final risk level is generated by the deterministic Risk Engine and validated by the Policy Engine.
+- JWT authentication with Argon2 password hashing.
+- Server-side RBAC.
+- Organization-level tenant isolation.
+- Protected audio upload validation.
+- Append-oriented audit records.
+- Explicit ML failure handling.
+- Deterministic risk and prevention decisions.
+- Advisory-only LLM behavior.
+- No credentials or secrets in demo output.
+- Demo audio must be self-generated, publicly permitted, or explicitly authorized.
 
 ## Repository Documentation
 
-The complete project design is documented in the [`Docs`](Docs) directory:
-
 | Document | Purpose |
 |---|---|
-| [SRS.md](Docs/SRS.md) | Functional and non-functional requirements specification |
-| [TECH_STACK.md](Docs/TECH_STACK.md) | Official technology decisions and MVP/future matrix |
-| [ARCHITECTURE.md](Docs/ARCHITECTURE.md) | System architecture and component flows |
-| [AI_MODEL.md](Docs/AI_MODEL.md) | AI model, inference, evaluation, and evolution strategy |
-| [DATABASE.md](Docs/DATABASE.md) | PostgreSQL logical schema and data architecture |
-| [API.md](Docs/API.md) | REST and WebSocket API design |
-| [SECURITY.md](Docs/SECURITY.md) | Threat model, security controls, and implementation guidance |
-| [DEMO.md](Docs/DEMO.md) | Hackathon demo playbook and fallback plan |
-| [ROADMAP.md](Docs/ROADMAP.md) | MVP priorities and product evolution roadmap |
+| [SRS.md](Docs/SRS.md) | Functional and non-functional requirements |
+| [ARCHITECTURE.md](Docs/ARCHITECTURE.md) | System architecture |
+| [AI_MODEL.md](Docs/AI_MODEL.md) | Model and evaluation strategy |
+| [DATABASE.md](Docs/DATABASE.md) | PostgreSQL schema |
+| [API.md](Docs/API.md) | REST and WebSocket API |
+| [SECURITY.md](Docs/SECURITY.md) | Security model and threat controls |
+| [DEMO.md](Docs/DEMO.md) | Hackathon demo playbook |
+| [PHASE_12_PRODUCTION_HARDENING.md](Docs/PHASE_12_PRODUCTION_HARDENING.md) | Production hardening |
+| [PHASE_13_DEMO_HARDENING.md](Docs/PHASE_13_DEMO_HARDENING.md) | Demo-readiness gate and rehearsal |
+| [ROADMAP.md](Docs/ROADMAP.md) | Product and technical roadmap |
 
 ## Demo Scenario
 
-The hackathon demonstration uses a safe, simulated impersonation scenario:
+The demonstration uses a safe simulated impersonation scenario:
 
-1. An analyst views a normal or authentic audio baseline.
-2. A fictional employee receives an urgent, security-sensitive voice instruction.
-3. An authorized synthetic-audio sample is analyzed.
-4. The detection layer emits a suspicious signal.
-5. The Risk Engine raises the risk level using deterministic logic.
-6. The Policy Engine creates an alert and recommends verification or escalation.
-7. The analyst investigates the alert and records the response.
-8. When enabled, the Security Copilot explains the indicators and suggests verification steps without making the decision.
+1. Show the normal dashboard and authentic baseline.
+2. Start an analysis using an authorized synthetic-audio sample.
+3. Show audio processing and AI detection.
+4. Show deterministic risk scoring and policy evaluation.
+5. Show alert creation and analyst investigation.
+6. Demonstrate the alert lifecycle.
+7. Show WebSocket updates when available.
+8. Demonstrate Copilot only if stable and clearly advisory.
+9. Finish with secondary verification or another controlled response.
 
-Use only self-generated, publicly permitted, or explicitly authorized audio samples. Do not use a real person’s cloned voice without authorization.
+Do not use a real person's cloned voice without authorization.
 
-## Getting Started
+## Demo Readiness
 
-This repository currently contains the product, architecture, API, AI/ML, security, database, roadmap, and demo specifications that guide implementation.
+From the repository root:
 
-The recommended build sequence is:
+```powershell
+cd backend
+python scripts/validate_phase_13.py
+```
 
-1. Establish the React frontend, FastAPI backend, PostgreSQL database, and local environment.
-2. Implement authentication, server-side RBAC, and organization isolation.
-3. Implement audio-session creation, upload validation, and preprocessing.
-4. Integrate a locally tested pretrained anti-spoofing model through the model adapter.
-5. Implement deterministic risk scoring, policy validation, alerts, and audit logging.
-6. Build dashboard APIs and frontend investigation views.
-7. Add WebSocket updates and, where feasible, the advisory Security Copilot.
-8. Test and harden the demo path using the [demo guide](Docs/DEMO.md).
+The Phase 13 gate verifies the backend application, end-to-end pipeline, Phase 12 validation gate, AASIST checkpoint, FFmpeg availability, required API routes, optional configured demo audio, and the frontend production build when present.
 
-## Project Status
+## Frontend Validation
 
-**Status: Documentation and MVP design phase.**
+```powershell
+cd ..\frontend
+npm run build
+npm run test
+npm run lint
+```
 
-The repository defines the approved scope and implementation blueprint. Features described as future scope in the documentation are not represented as completed functionality.
+Lint warnings are tracked separately from lint errors; a clean gate requires zero lint errors.
+
+## Failure Fallback
+
+- ML/checkpoint issue → clearly labeled prepared result.
+- FFmpeg issue → prepared processed authorized sample.
+- WebSocket issue → REST retrieval.
+- Database issue → prepared local backup environment.
+- Frontend issue → backup tab or recording.
+- Copilot issue → skip the optional advisory segment.
+
+Fallback results must never be presented as fresh inference.
 
 ## Future Direction
 
-- Improved and evaluated anti-spoofing models, including robustness for Indian languages and accents.
+- Improved anti-spoofing models and robustness evaluation.
 - Streaming, telephony, and VoIP ingestion.
 - Dedicated inference services and ONNX optimization.
-- Redis-backed transient state, queues, and horizontally scalable deployments.
-- Enterprise integrations with telephony platforms, SIEM/SOC systems, webhooks, SDKs, and gRPC.
-- Production monitoring, security automation, model lifecycle controls, and centralized security operations.
-
-## Contributing
-
-Before making implementation changes, review the relevant document in [`Docs`](Docs). Keep the core design principles intact: model-agnostic AI integration, privacy-aware processing, deterministic security decisions, and advisory-only LLM behavior.
+- Redis-backed queues and horizontally scalable deployments.
+- SIEM, telephony, webhook, SDK, and enterprise integrations.
+- Centralized production monitoring and model lifecycle controls.
 
 ## License
 

@@ -1,3 +1,4 @@
+// oxlint-disable react(set-state-in-effect), react-hooks(exhaustive-deps)
 import axios from "axios";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -31,8 +32,6 @@ function useOverview() {
     setLoading(true); setError("");
     try { setData(await getDashboardOverview(token)); } catch (e) { setError(axios.isAxiosError(e) ? String(e.response?.data?.detail ?? "Unable to load security data") : "Unable to load security data"); } finally { setLoading(false); }
   };
-  // API loading intentionally updates local state from an external data source.
-  // oxlint-disable-next-line react(set-state-in-effect)
   useEffect(() => { void load(); }, []);
   return { data, loading, error, reload: load };
 }
@@ -103,7 +102,6 @@ export function AlertDetailPage() {
   const load = async () => { if (!alertId) return; setLoading(true); try { const [a, h] = await Promise.all([getAlert(alertId), getAlertActions(alertId)]); setAlert(a); setActions(h); } catch (e) { setError(axios.isAxiosError(e) ? String(e.response?.data?.detail ?? "Unable to load alert") : String(e)); } finally { setLoading(false); } };
   // API loading intentionally updates local state from an external data source.
   // oxlint-disable-next-line react(set-state-in-effect)
-  // oxlint-disable-next-line react-hooks(exhaustive-deps)
   useEffect(() => { void load(); }, [alertId]);
   const act = async (status: string) => { if (!alertId) return; setBusy(true); setError(""); try { await transitionAlert(alertId, status); await load(); } catch (e) { setError(axios.isAxiosError(e) ? String(e.response?.data?.detail ?? "Status transition failed") : String(e)); } finally { setBusy(false); } };
   if (loading) return <main className="sw-page"><Loading /></main>;

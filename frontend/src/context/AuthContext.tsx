@@ -1,3 +1,4 @@
+// oxlint-disable react(only-export-components)
 /** Global authentication state with memory-only access token and cookie refresh. */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiLogin, apiLogout, apiRefresh, setAccessToken, type UserProfile } from "../api/auth";

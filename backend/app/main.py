@@ -24,6 +24,7 @@ from app.api.v1.risk import router as risk_router
 from app.api.v1.users import router as users_router
 from app.config import get_settings
 from app.core.exceptions import unhandled_exception_handler
+from app.core.hardening import SecurityHeadersMiddleware
 from app.core.logging import configure_logging
 
 settings = get_settings()
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     _app.state.limiter = limiter
     _app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     _app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://localhost:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+    _app.add_middleware(SecurityHeadersMiddleware)
     _app.add_exception_handler(Exception, unhandled_exception_handler)
     _app.include_router(health_router, prefix="/api/v1")
     _app.include_router(auth_router, prefix="/api/v1")

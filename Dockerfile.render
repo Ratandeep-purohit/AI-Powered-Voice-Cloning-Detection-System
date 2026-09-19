@@ -28,6 +28,7 @@ COPY deployment/render-start.sh /app/deployment/render-start.sh
 
 RUN useradd --create-home --uid 1000 --shell /bin/sh appuser && \
     mkdir -p /tmp/models /tmp/audio && \
+    chmod +x /app/deployment/render-start.sh && \
     chown -R appuser:appuser /app /tmp/models /tmp/audio
 
 USER appuser

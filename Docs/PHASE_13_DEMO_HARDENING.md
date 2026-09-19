@@ -21,7 +21,8 @@ The gate checks:
 - FFmpeg is available and executable.
 - Required health, analysis, end-to-end analysis, and WebSocket routes are registered.
 - Optional authentic/synthetic demo audio paths are present when configured.
-- A frontend production build exists when `frontend/dist` is present.
+- The frontend package exposes `build`, `test`, and `lint` validation scripts.
+- A frontend production build exists at `frontend/dist/index.html`.
 
 ## Demo audio configuration
 

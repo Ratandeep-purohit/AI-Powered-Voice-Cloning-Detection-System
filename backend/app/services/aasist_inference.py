@@ -73,7 +73,10 @@ class AASISTInferenceService:
         if device == "cuda" and not torch.cuda.is_available():
             raise AASISTInferenceError("CUDA was requested but is not available.")
 
-        selected = "cuda" if device == "auto" and torch.cuda.is_available() else device
+        if device == "auto":
+            selected = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            selected = device
         self.device = torch.device("cuda:0" if selected == "cuda" else selected)
         self.mixed_precision = mixed_precision and self.device.type == "cuda"
         self.threshold = float(settings.aasist_detection_threshold)

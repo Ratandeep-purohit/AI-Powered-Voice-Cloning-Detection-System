@@ -17,9 +17,9 @@ export function createRealtimeSocket(
   if (!token) return () => undefined;
 
   const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.host;
-  const url = `${protocol}//${host}${apiBase}/realtime/ws?token=${encodeURIComponent(token)}`;
+  const backendUrl = new URL(apiBase, window.location.origin);
+  const protocol = backendUrl.protocol === "https:" ? "wss:" : "ws:";
+  const url = `${protocol}//${backendUrl.host}${backendUrl.pathname.replace(/\/$/, "")}/realtime/ws?token=${encodeURIComponent(token)}`;
   const socket = new WebSocket(url);
 
   socket.onopen = () => onStateChange(true);

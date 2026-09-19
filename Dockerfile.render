@@ -21,7 +21,8 @@ WORKDIR /app
 
 COPY backend/requirements.render.txt /app/backend/requirements.render.txt
 RUN python -m pip install --upgrade pip && \
-    python -m pip install -r /app/backend/requirements.render.txt
+    python -m pip install -r /app/backend/requirements.render.txt && \
+    python -m pip install --index-url https://download.pytorch.org/whl/cpu torch==2.14.0+cpu
 
 COPY backend/ /app/backend/
 COPY deployment/render-start.sh /app/deployment/render-start.sh

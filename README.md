@@ -1,3 +1,13 @@
+---
+title: AI-Powered Voice Cloning Detection & Prevention
+emoji: 🛡️
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+app_port: 7860
+short_description: AI-powered synthetic voice detection, deterministic risk scoring, prevention, and security alerting.
+---
+
 # AI-Powered Voice Cloning Detection & Prevention System
 
 > A privacy-aware cybersecurity platform for detecting synthetic, AI-generated, and cloned voices in real-time or near-real-time audio interactions—then turning detection signals into deterministic, actionable security responses.
@@ -52,7 +62,7 @@ The AI model provides a detection signal. The **Risk Engine** combines that sign
 | Database | PostgreSQL |
 | Real-Time | FastAPI WebSockets |
 | Security | JWT, RBAC, Argon2, validation, HTTPS/TLS, rate limiting, audit logging |
-| DevOps | Docker, Docker Compose, Git, GitHub |
+| DevOps | Docker, Docker Compose, Git, GitHub, Hugging Face Spaces |
 
 ## Security Principles
 
@@ -97,6 +107,12 @@ The demonstration uses a safe simulated impersonation scenario:
 9. Finish with secondary verification or another controlled response.
 
 Do not use a real person's cloned voice without authorization.
+
+## Hugging Face Deployment
+
+This repository includes a Docker Space deployment for Hugging Face. See [Docs/HUGGINGFACE_DEPLOYMENT.md](Docs/HUGGINGFACE_DEPLOYMENT.md) for the required PostgreSQL, JWT, and AASIST checkpoint configuration.
+
+The Space exposes the React frontend and FastAPI backend through port `7860` and keeps the production AASIST checkpoint external to Git.
 
 ## Demo Readiness
 

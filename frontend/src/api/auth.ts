@@ -1,7 +1,7 @@
 /** Authentication API client. Access JWT stays in memory; refresh token is HttpOnly cookie. */
 import axios from "axios";
 
-const API_BASE = "/api/v1";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
 export interface UserProfile {
   id: string;

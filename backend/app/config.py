@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     app_host: str = Field(default="0.0.0.0")
     app_port: int = Field(default=8000)
     log_level: str = Field(default="INFO")
+    cors_allowed_origins: str = Field(default="http://localhost:5173,http://localhost:3000")
 
     database_url: str = Field(...)
     test_database_url: str | None = Field(default=None)
@@ -62,6 +63,10 @@ class Settings(BaseSettings):
     @property
     def allowed_audio_extensions(self) -> set[str]:
         return {item.strip().lower().lstrip(".") for item in self.audio_allowed_extensions.split(",") if item.strip()}
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
     @field_validator("database_url")
     @classmethod

@@ -5,11 +5,16 @@ import os
 import shutil
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ROOT.parent
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
+
+# Make `backend` importable when this script is launched from backend/scripts.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 REQUIRED_API_PATHS = {
     "/api/v1/health",

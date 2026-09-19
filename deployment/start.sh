@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 mkdir -p /data/audio /data/models
-CHECKPOINT_PATH=$AASIST_CHECKPOINT_PATH
-if [ -n "$AASIST_CHECKPOINT_URL" ] && [ ! -f "$CHECKPOINT_PATH" ]; then
+CHECKPOINT_PATH=${AASIST_CHECKPOINT_PATH:-/data/models/best.pt}
+if [ -n "${AASIST_CHECKPOINT_URL:-}" ] && [ ! -f "$CHECKPOINT_PATH" ]; then
   echo "Downloading AASIST checkpoint..."
   curl -fL --retry 3 --retry-delay 2 "$AASIST_CHECKPOINT_URL" -o "$CHECKPOINT_PATH"
 fi

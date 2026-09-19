@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import json
 import subprocess
 from pathlib import Path
 
@@ -58,6 +59,23 @@ def check_routes() -> None:
     print(f"[PASS] Required demo API routes present: {len(REQUIRED_API_PATHS)}")
 
 
+def check_frontend_readiness() -> None:
+    package_json = REPO_ROOT / "frontend" / "package.json"
+    check_file(package_json, "Frontend package manifest")
+    try:
+        package = json.loads(package_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"Frontend package manifest could not be parsed: {exc}")
+
+    scripts = package.get("scripts", {})
+    missing_scripts = [name for name in ("build", "test", "lint") if not scripts.get(name)]
+    if missing_scripts:
+        fail(f"Frontend validation scripts missing: {', '.join(missing_scripts)}")
+    print("[PASS] Frontend build/test/lint scripts are defined")
+
+    check_file(FRONTEND_DIST / "index.html", "Frontend production build")
+
+
 def check_optional_demo_audio() -> None:
     configured = {
         "DEMO_AUTHENTIC_AUDIO_PATH": os.getenv("DEMO_AUTHENTIC_AUDIO_PATH"),
@@ -86,10 +104,7 @@ def main() -> None:
     check_routes()
     check_optional_demo_audio()
 
-    if FRONTEND_DIST.is_dir():
-        check_file(FRONTEND_DIST / "index.html", "Frontend production build")
-    else:
-        print("[WARN] frontend/dist is missing; run the frontend production build before the demo")
+    check_frontend_readiness()
 
     print("PHASE 13 READINESS GATE PASSED")
     print("Presentation samples remain an operator responsibility and must be authorized demo audio.")
